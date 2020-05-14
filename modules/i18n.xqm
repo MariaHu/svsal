@@ -76,7 +76,8 @@ declare function i18n:process($node as node(), $selectedCatalogue as node()) {
 
         case element() return                 
             element { node-name($node) } {
-                    i18n:translateAttributes($node,$selectedCatalogue), 
+(:                    i18n:translateAttributes($node,$selectedCatalogue), :)
+                    for $attribute in $node/@* return $attribute,
                     for $child in $node/node() return i18n:process($child,$selectedCatalogue)
             }
                     
@@ -336,5 +337,3 @@ declare function i18n:largeIntToString($int as xs:integer, $lang as xs:string?) 
             case 12 return substring($str,1,string-length($str)-9) || $separator || substring($str,string-length($str)-8,1) || ' ' || $billion
             default return $str
 };
-
-
