@@ -110,7 +110,7 @@ declare function html:makeHTMLData($tei as element(tei:TEI)) as map(*) {
             return 
                 map {
                     'index': $index,
-                    'number': format-number($index, "0000"),
+                    'number': format-number($index, "00000"),
                     'tei_name': local-name($section),
                     'tei_id': string($section/@xml:id),
                     'tei_level': count($section/ancestor-or-self::tei:*),

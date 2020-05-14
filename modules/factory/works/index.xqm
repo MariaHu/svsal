@@ -100,9 +100,11 @@ declare function index:makeNodeIndex($tei as element(tei:TEI)) as map(*) {
 ~ as root nodes for spltting the dataset into HTML fragments.
 :)
 declare function index:determineFragmentationDepth($work as element(tei:TEI)) as xs:integer {
-    if ($work//processing-instruction('svsal')[matches(., 'htmlFragmentationDepth="\d{1,2}"')]) then
-        xs:integer($work//processing-instruction('svsal')[matches(., 'htmlFragmentationDepth="\d{1,2}"')][1]/replace(., 'htmlFragmentationDepth="(\d{1,2})"', '$1'))
-    else $config:fragmentationDepthDefault
+    let $fd := if ($work//processing-instruction('svsal')[matches(., 'htmlFragmentationDepth="\d{1,2}"')]) then
+                   xs:integer($work//processing-instruction('svsal')[matches(., 'htmlFragmentationDepth="\d{1,2}"')][1]/replace(., 'htmlFragmentationDepth="(\d{1,2})"', '$1'))
+               else $config:fragmentationDepthDefault
+    let $debug := console:log("[ADMIN] Fragmentation Depth: ", $fd, ".")
+    return $fd
 };
 
 

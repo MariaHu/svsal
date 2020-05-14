@@ -565,7 +565,6 @@ declare %templates:wrap function admin:renderAuthorLemma($node as node(), $model
         </p>
 };
 
-
 (:
 ~ Creates HTML fragments and TXT datasets for works and stores them in the database, also updating
 ~ the corpus datasets (TEI and TXT zips) with the respective work's data.
@@ -791,8 +790,6 @@ declare function admin:createTxtCorpus($processId as xs:string) {
         </div>
 };
 
-
-
 (: Generate fragments for sphinx' indexer to grok :)
 (: NOTE: the largest part of the snippets creation takes place here, not in factory/*, since it applies to different
  types of texts (works, working papers) at once :)
@@ -980,7 +977,7 @@ declare function admin:sphinx-out($wid as xs:string*, $mode as xs:string?) {
                              else format-number($runtime-ms div (1000 * 60 * 60), "#.##") || " Std."
                             }
                         </p>
-                        {$hits}
+                        {if ($config:debug = ("trace")) then $hits else ()}
                     </sphinx:docset>
                 </div>
             </div>
@@ -997,7 +994,6 @@ declare function admin:sphinx-out($wid as xs:string*, $mode as xs:string?) {
                 </div>
             </div>
 };
-
 
 declare function admin:createNodeIndex($wid as xs:string*) {
 (:    let $debug := if ($config:debug = ("trace", "info")) then util:log("warn", "[ADMIN] Creating node index for " || $wid || ".") else ():)
@@ -1082,7 +1078,7 @@ declare function admin:createRDF($rid as xs:string) {
         else ()
     let $rdf := 
         (: if this throws an "XML Parsing Error: no root element found", this might be due to the any23 service not being available
-         - check it via "curl -X GET http://localhost:8880/any23/any23/rdfxml/http://data.gov", for example:)
+         - check it via "curl -X POST http://localhost:8880/any23/any23/rdfxml", for example:)
         doc($xtriplesUrl) 
     let $runtime-ms := ((util:system-time() - $start-time) div xs:dayTimeDuration('PT1S'))  * 1000
     let $runtimeString := 
@@ -1095,7 +1091,7 @@ declare function admin:createRDF($rid as xs:string) {
         <div>
             <h2>RDF Extraction</h2>
             <p>Extracted RDF in {$runtimeString} and saved at {$save}</p>
-            <div style="margin-left:5em;">{$rdf}</div>
+            <div style="margin-left:5em;">{if ($config:debug = ("trace")) then $rdf else ()}</div>
         </div>
 };
 
@@ -1122,7 +1118,6 @@ declare function admin:createIIIF($wid as xs:string) {
     let $store := if ($resource) then xmldb:store($config:iiif-root, $wid || '.json', $resource) else ()
     return $resource
 };
-
 
 declare function admin:createStats() {
     let $log  := if ($config:debug eq 'trace') then util:log('warn', '[ADMIN] Starting to extract stats...') else ()

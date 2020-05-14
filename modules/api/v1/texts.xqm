@@ -96,11 +96,11 @@ function textsv1:textsResource1($rid, $format, $mode, $q, $lang, $viewer, $frag,
         switch($format)
             (: although this method principally accepts all possible query params, only the suitable ones are passed 
                to the respective format's function - the other ones are simply ignored :)
-            case 'iiif' return textsv1:IIIFredirect($rid, $host)
-            case 'jpg' return textsv1:JPGredirect($rid)
-            case 'rdf' return textsv1:RDFdeliverDoc($rid)
-            case 'tei' return textsv1:TEIdeliverDoc($rid, $mode)
-            case 'txt' return textsv1:TXTdeliverDoc($rid, $mode)
+            case 'iiif'  return textsv1:IIIFredirect($rid, $host)
+            case 'jpg'   return textsv1:JPGredirect($rid)
+            case 'rdf'   return textsv1:RDFdeliverDoc($rid)
+            case 'tei'   return textsv1:TEIdeliverDoc($rid, $mode)
+            case 'txt'   return textsv1:TXTdeliverDoc($rid, $mode)
             case 'stats' return textsv1:STATSdeliverDoc($rid)
             default return 
                 textsv1:HTMLdeliverDoc($rid, $mode, $q, $lang, $viewer, $frag, $canvas, $host)

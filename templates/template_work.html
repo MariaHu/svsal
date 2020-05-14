@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html xmlns:i18n="http://exist-db.org/xquery/i18n" data-template="i18n:translate" data-template-catalogues="data/i18n">
     <head>
         <meta charset="UTF-8"/>
@@ -5,7 +6,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         <meta name="author" content=""/>
         <meta name="description" data-template="gui:metaDescription" content=""/>
-        <title data-template="gui:metaTitle"/>
+        <title data-template="gui:metaTitle">Work View - The School of Salamanca</title>
         <link rel="canonical" data-template="gui:canonicalUrl"/>
         <link rel="alternate" data-template="gui:hreflangUrl"/>
         <link rel="alternate" data-template="gui:rdfUrl"/>
@@ -16,15 +17,17 @@
 
         <!-- ==== CSS  ==== -->
         <link rel="stylesheet" type="text/css" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"/>
+        <!-- <link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous"/> -->
         <link rel="stylesheet" type="text/css" href="resources/css/style_work.css"/>
         <link rel="stylesheet" type="text/css" href="resources/css/jquery-ui-1.10.4.custom.css"/>
-        <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous"/>
-        <!--<link rel="stylesheet" type="text/css" href="resources/css/jquery.treeview.css"/>-->
-        <link rel="stylesheet" type="text/css" href="resources/css/jsTree.css"/>
+        <link rel="stylesheet" type="text/css" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous"/>
+        <!-- <link rel="stylesheet" type="text/css" href="resources/css/jquery.treeview.css"/>-->
+        <!-- <link rel="stylesheet" type="text/css" href="resources/css/jsTree.css"/> -->
+        <link rel="stylesheet" type="text/css" href="//cdnjs.cloudflare.com/ajax/libs/jstree/3.3.9/themes/default/style.min.css"/>
         <link rel="stylesheet" type="text/css" href="resources/css/tooltipster.css"/>
         <link rel="stylesheet" type="text/css" href="resources/css/backTop.css"/>
         <link rel="stylesheet" type="text/css" href="resources/css/mirador-combined.css"/>
-        <style type="text/css">
+        <style>
             .ui-dialog .ui-dialog-content {
                 padding: 0 0;
             }
@@ -68,21 +71,22 @@
         <div id="content" class="container-fluid"/>
 
         <!-- ==== Core JavaScript  ==== -->
-        <script type="text/javascript" src="//code.jquery.com/jquery-1.11.3.min.js"/>
-        <script type="text/javascript" src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"/>
-        <script type="text/javascript" src="//code.jquery.com/ui/1.11.3/jquery-ui.min.js"/>
-        <script type="text/javascript" src="resources/js/jquery.bootstrap-autohidingnavbar.js"/>
-        <script type="text/javascript" src="resources/js/jquery.tooltipster.js"/>
+        <script src="//code.jquery.com/jquery-1.11.3.min.js"/>
+        <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"/>
+        <!-- <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"/> -->
+        <script src="//code.jquery.com/ui/1.11.3/jquery-ui.min.js"/>
+        <script src="resources/js/jquery.bootstrap-autohidingnavbar.js"/>
+        <script src="resources/js/jquery.tooltipster.js"/>
 
         <!-- ==== Citation reference TEST ==== -->
         
         
         <!-- ==== Back to top ==== -->
         <a id="backTop"/>
-        <script type="text/javascript" src="resources/js/jquery.backTop.js"/>
+        <script src="resources/js/jquery.backTop.js"/>
 
         <!-- ==== Scroll an anchor into view if we have one ==== -->
-        <script type="text/javascript">
+        <script>
             function myScrollIntoView(targetId) {
 /*
                 $(targetId)[0].scrollIntoView(true, {behavior: 'smooth'});
@@ -136,7 +140,7 @@
         </script>
 
         <!-- ==== Toggle diplomatic/constituated textmode ==== -->
-        <script type="text/javascript" src="resources/js/sal-common.js"/>
+        <script src="resources/js/sal-common.js"/>
         <!--<script type="text/javascript">
 //            $(document).ready(function() {
 //                if (window.location.search.match(/mode=((orig)|(edit))/i)) { applyMode(); }
@@ -144,15 +148,15 @@
         </script>-->
 
         <!-- ==== Show GUI-Nav when scolling to top ==== -->
-        <script type="text/javascript">
+        <script>
             $(document).ready(function () {
                 $(".navbar-white").autoHidingNavbar().autoHidingNavbar('setShowOnBottom', false).autoHidingNavbar('setAnimationDuration', 400);
             });
         </script>
 
         <!-- ==== InfiniteAjaxScroll for progressive enhancement ==== -->
-        <script type="text/javascript" src="resources/js/jquery-ias.js"/>
-        <script type="text/javascript">
+        <script src="resources/js/jquery-ias.js"/>
+        <script>
             var ias = $.ias({
                 container:  "#SvSalPages",
                 item:       ".SvSalPage",
@@ -248,7 +252,7 @@
         </script>
 
         <!-- ==== Load Paginator content when clicking on dropdown-menu ==== -->
-        <script type="text/javascript">
+        <script>
 //            $(document).ready(function() {
 //                $('#dropdownMenu1').click(loadPaginatorContent);
 //            });
@@ -259,9 +263,10 @@
         </script>
         <!-- var $self = `<span data-template="app:loadWRKpagination"/>`; -->
         <!-- ==== TOC tree ==== -->
-        <script type="text/javascript" src="resources/js/jstree.js"/>
+        <!-- <script type="text/javascript" src="resources/js/jstree.js"/> -->
+        <script src="//cdnjs.cloudflare.com/ajax/libs/jstree/3.3.9/jstree.min.js"/>
         <!-- ==== Initialize Table of Contents ==== -->
-        <script type="text/javascript">
+        <script>
             var tree = $("#tableOfConts");
             tree.bind("loaded.jstree", function (event, data) {
                 tree.jstree(true).open_node($('#tableOfConts').find('li').first());;
@@ -275,7 +280,7 @@
         </script>
 
         <!-- ==== Toggle Table of Contents ==== -->
-        <script type="text/javascript">
+        <script>
             $(function() {
                 $('#toggleButton').click(function() {
                     if ($("button[id='toggleButton']").hasClass('expanded')) {
@@ -293,7 +298,7 @@
         </script>
 
         <!-- ==== Close Modal on Clicking a TOC link ==== -->
-        <script type="text/javascript">
+        <script>
             $('.hideMe').click(function(){
                     // 'this' would reference the anchor that was clicked
                     $('#myModal').modal('hide');  
@@ -301,14 +306,14 @@
         </script>
         
         <!-- ==== Do not close export menu on click ==== -->
-        <script type="text/javascript">
+        <script>
             $(document).on('click', '.dropdown-menu.export-options', function (e) {
                 e.stopPropagation();
             });
         </script>
 
         <!-- ==== Remember current position on Clicking a language link ==== -->
-        <script type="text/javascript">
+        <script>
             function replaceQueryParam(param, newval, search) {
                 var regex = new RegExp("([?;&amp;])" + param + "[^&amp;;]*[;&amp;]?");
                 var query = search.replace(regex, "$1").replace(/&amp;$/, '');
@@ -334,7 +339,7 @@
         </script>-->
 
         <!-- ==== Paragraph popup with link, refresh and print icons ====  -->
-        <script type="text/javascript">
+        <script>
             $('[data-rel="popover"]').popover({
                     trigger:    'click',
                     animation: 'true',
@@ -379,7 +384,7 @@
         </script>
         
         <!-- Toolboxes: highlighting and copy functions -->
-        <script type="text/javascript">
+        <script>
             function copyLink(elem) {
                 var target = elem.parentElement.getElementsByClassName('cite-link')[0];
                 var input = document.createElement('textarea');
@@ -457,7 +462,7 @@
                 <li>Highlighting</li>
             </ul>
         </div>
-        <script type="text/javascript">
+        <script>
             $(document).ready(function(){
                 $('#hiliteBox').dialog({
                             autoOpen: true,
@@ -483,7 +488,7 @@
 -->
 
         <!-- ==== Scroll to prev/next search result ==== -->
-        <!--<script type="text/javascript">
+        <!--<script>
             $(document).ready(function(){
                $('.hi').first().addClass('current');
 //               $('html, body').animate({scrollTop: $('.current').offset().top - 160 }, 'slow');
@@ -564,7 +569,7 @@
         <div id="parent">
             <iframe title="Mirador" id="Mirador" src="viewer.html" allowfullscreen="" style="min-width: 99%;height:99%;"/>
         </div>
-        <script type="text/javascript">
+        <script>
         /**
          * JavaScript Get URL Parameter
          *
@@ -746,20 +751,20 @@
         </script>
 
         <!-- ==== Mobil-View: Hide opened collapsed menu after clicking elsewhere on page ==== -->
-        <script type="text/javascript">
+        <script>
             $(document).on('click',function(){
                 $('.collapse .navbar-collapse').collapse('hide');
             });
         </script>
 
         <!-- ==== Mobil-View: scroll to last collapsed navbar item on mobile when there are many items ==== -->
-        <script type="text/javascript">
+        <script>
             $(".navbar-collapse").css({ maxHeight: $(window).height() - $(".navbar-header").height() + "px" });
         </script>
 
        <!-- Modal: Additional functions with cookies -->
        <!-- <div data-template="app:WRKhelp"/>
-       <script type="text/javascript">
+       <script>
              // Delayed Modal Display + Cookie On Click
              $(document).ready(function() {
 
@@ -786,7 +791,7 @@
 
         <!-- ==== Piwik for visitor stats ==== -->
         <!-- - - Piwik for visitor stats (modified to enable caching and compression) - - -->
-        <!--<script type="text/javascript">
+        <!--<script>
           var _paq = _paq || [];
           _paq.push(["setDocumentTitle", document.domain + "/" + document.title]);
           _paq.push(["setCookieDomain", "*.salamanca.school"]);
@@ -814,7 +819,7 @@
         <!-- End Piwik Code -->
 
         <!-- One document.ready function collecting init for all of the above... -->
-        <script type="text/javascript">
+        <script>
             $(window).load( function() {
                 // move to anchor if we have one in our url
                 if (window.location.hash.length &gt; 0) {

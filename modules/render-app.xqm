@@ -10,7 +10,9 @@ import module namespace config     = "http://www.salamanca.school/xquery/config"
 import module namespace i18n      = "http://exist-db.org/xquery/i18n"        at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
 
 (:
-~ A conglomeration of rendering mechanisms for different, not necessarily related parts of the app, such as search help, participants pages, etc.
+~ A conglomeration of rendering mechanisms for different,
+~ not necessarily related parts of the app, such as
+~ search help, participants pages, etc.
 :)
 
 (:

@@ -1,5 +1,6 @@
-<html>
-    <head xmlns:i18n="http://exist-db.org/xquery/i18n" data-template="i18n:translate" data-template-catalogues="data/i18n">
+<!DOCTYPE html>
+<html xmlns:i18n="http://exist-db.org/xquery/i18n" data-template="i18n:translate" data-template-catalogues="data/i18n"><!--  data-template-lang="en" -->
+    <head>
         <meta charset="UTF-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         <meta name="author" content=""/>
@@ -10,7 +11,8 @@
         
         <!-- ==== CSS ==== -->
         <link rel="stylesheet" type="text/css" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"/>
-        <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous"/>
+        <!-- <link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous"/> -->
+        <link rel="stylesheet" type="text/css" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous"/>
         <!--    <link rel="stylesheet" type="text/css" href="resources/css/backTop.css"/> -->
         <style>
             /*Main stylesheet for Backtop jQuery Plugin */
@@ -100,13 +102,14 @@
             </div>
             
             <!-- ==== Core JavaScript ==== -->
-            <script type="text/javascript" src="//code.jquery.com/jquery-1.11.3.min.js"/>
-            <script type="text/javascript" src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"/>
+            <script src="//code.jquery.com/jquery-1.11.3.min.js"/>
+            <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"/>
+            <!-- <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"/> -->
             
             <!-- ==== jQuery Back to top ==== -->
             <a id="backTop"/>
-            <script type="text/javascript" src="resources/js/jquery.backTop.js"/>
-            <script type="text/javascript">
+            <script src="resources/js/jquery.backTop.js"/>
+            <script>
                 $(document).ready( function() {
                     $('#backTop').backTop({
                         'position' : 100,
@@ -117,7 +120,7 @@
             </script>
             
             <!-- ==== Carousel interval = 15 Sec. ==== -->
-            <script type="text/javascript">
+            <script>
                 // interval is in milliseconds. 1000 = 1 second - so 1000 * 10 = 10 seconds
                 $('.carousel').carousel({
                   interval: 1500 * 10
@@ -125,14 +128,14 @@
             </script>
             
             <!-- ==== Mobil-View: Hide opened collapsed menu after clicking elsewhere on page ==== -->
-            <script type="text/javascript">
+            <script>
                  $(document).on('click',function(){
                      $('.collapse').collapse('hide');
                  });
             </script>
             
             <!-- ==== Mobil-View: scroll to last collapsed navbar item on mobile when there are many items ==== -->
-            <script type="text/javascript">
+            <script>
             $(".navbar-collapse").css({ maxHeight: $(window).height() - $(".navbar-header").height() + "px" });
             </script>
             
