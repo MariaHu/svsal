@@ -280,7 +280,7 @@ declare function sutil:getTeiNodeFromCitetrail($workId as xs:string, $citetrail 
     - "record" for generic citations in catalogue records 
     - "reading-full" for generic citations in reading view; access date has to be appended elsewhere
     - "reading-passage" for fine-granular citations in reading view, including passagetrail - this yields two <span>s, 
-        between the two of which the acces date has to be inserted (e.g., by means of JS)
+        between the two of which the access date has to be inserted (e.g., by means of JS)
 :)
 declare function sutil:HTMLmakeCitationReference($wid as xs:string, $fileDesc as element(tei:fileDesc), $mode as xs:string, $node as element()?) as element(span)+ {
     let $author := $fileDesc/tei:titleStmt/tei:author/tei:persName/tei:surname/text()
@@ -319,4 +319,9 @@ declare function sutil:HTMLmakeCitationReference($wid as xs:string, $fileDesc as
 };
 
 
-
+declare function sutil:strip-diacritics($string as xs:string) as xs:string {
+    let $normalized := normalize-unicode($string, 'NFD')
+    let $stripped := replace($normalized, '\p{IsCombiningDiacriticalMarks}', '')
+    return
+        $stripped
+};
