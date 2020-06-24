@@ -265,6 +265,9 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
         let $wid            :=  xs:string($item/parent::tei:TEI/@xml:id)
         let $title          :=  $item/tei:fileDesc/tei:titleStmt/tei:title[@type = 'short']
         let $status         :=  xs:string($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status)
+        let $disclaimer     :=  if ($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status eq "h_temporarily_suspended") then
+                                    normalize-space($item/ancestor-or-self::tei:TEI//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/string())
+                                else ()
         let $WIPstatus      :=  
             if ($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status =
                                      ( 'a_raw',
@@ -349,6 +352,7 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
         let $output :=
                '&#123;'
             || '"title":'         || '"' || $title          || '",'
+            || '"disclaimer":'    || '"' || $disclaimer     || '",'
             || '"status":'        || '"' || $status         || '",'
             || '"WIPstatus":'     || '"' || $WIPstatus      || '",'
             || '"monoMultiUrl":'  || '"' || $wrkLink        || '",'
