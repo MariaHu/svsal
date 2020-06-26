@@ -503,6 +503,24 @@ declare
          $output
 };    
 
+declare
+    function gui:disclaimerDiv($node as node(), $model as map(*), $lang as xs:string, $aid as xs:string?, $lid as xs:string?, $nid as xs:string?, $wpid as xs:string?, $wid as xs:string?) {
+    if (doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")//tei:revisionDesc/@status eq "h_temporarily_suspended") then
+        <div class="container">
+            <div class="row-fluid alert alert-warning" style="margin-bottom:4px;">
+                <p style="text-align: center;">{doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/string()}</p>
+            </div>
+        </div>
+    else ()
+};
+
+declare
+    function gui:disclaimerSpan($node as node(), $model as map(*), $lang as xs:string, $aid as xs:string?, $lid as xs:string?, $nid as xs:string?, $wpid as xs:string?, $wid as xs:string?) {
+    if (doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")//tei:revisionDesc/@status eq "h_temporarily_suspended") then
+        <span style="color:firebrick;">{doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/string()}</span>
+    else ()
+};
+
 
 (: Stuff for landing page :)
 

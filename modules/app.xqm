@@ -270,7 +270,7 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
         let $title          :=  $item/tei:fileDesc/tei:titleStmt/tei:title[@type = 'short']
         let $status         :=  xs:string($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status)
         let $disclaimer     :=  if ($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status eq "h_temporarily_suspended") then
-                                    $item/ancestor-or-self::tei:TEI//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/string()
+                                    normalize-space($item/ancestor-or-self::tei:TEI//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/string())
                                 else ()
         let $WIPstatus      :=  
             if ($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status =
@@ -285,7 +285,7 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
         let $wrkLink        :=  'work.html?wid=' || $wid
 
         let $name           :=  sutil:formatName($item/tei:fileDesc/tei:titleStmt/tei:author/tei:persName)
-        let $sortName       :=  lower-case($item/tei:fileDesc/tei:titleStmt/tei:author/tei:persName/tei:surname) (:lower-casing for equal sorting:)
+        let $sortName       :=  sutil:strip-diacritics(lower-case($item/tei:fileDesc/tei:titleStmt/tei:author/tei:persName/tei:surname)) (:lower-casing and strip accents for equal sorting:)
         let $firstChar      :=  upper-case(substring($item/tei:fileDesc/tei:titleStmt/tei:author//tei:surname, 1, 1))
         let $nameFacet      :=       
                  if ($firstChar = ('A','B','C','D','E','F')) then 'A - F'
@@ -302,7 +302,7 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
         let $printingPlace  :=  
             if ($item//tei:pubPlace[@role = 'thisEd']) then $item//tei:pubPlace[@role = 'thisEd'] 
             else $item//tei:pubPlace[@role = 'firstEd']
-        let $placeFirstChar :=  substring($printingPlace/@key, 1, 1)
+        let $placeFirstChar :=  sutil:strip-diacritics(substring($printingPlace/@key, 1, 1))
         let $facetPlace     :=       
                  if ($placeFirstChar = ('A','B','C','D','E','F')) then 'A - F'
             else if ($placeFirstChar = ('G','H','I','J','K','L')) then 'G - L'

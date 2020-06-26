@@ -116,6 +116,13 @@
                 });
             </script>
             
+            <!-- Make sure content area is visible -->
+            <script type="text/javascript">
+                $(document).ready(function () {
+                    $("#content").css('padding-top', parseInt($('.alert').css("height")) + 2);
+                });
+            </script>
+
             <!-- ==== jQuery Back to top ==== -->
             <a id="backTop"/>
             <script type="text/javascript">
