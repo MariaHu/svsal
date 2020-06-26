@@ -10,19 +10,23 @@ xquery version "3.1";
  ----++++#### :)
 
 module namespace gui            = "http://www.salamanca.school/xquery/gui";
+
+declare namespace tei           = "http://www.tei-c.org/ns/1.0";
+
 declare namespace exist         = "http://exist.sourceforge.net/NS/exist";
 (: declare namespace pack          = "http://expath.org/ns/pkg"; :)
 declare namespace request       = "http://exist-db.org/xquery/request";
 declare namespace sm            = "http://exist-db.org/xquery/securitymanager";
-declare namespace tei           = "http://www.tei-c.org/ns/1.0";
 declare namespace templates     = "http://exist-db.org/xquery/templates";
-import module namespace xmldb   = "http://exist-db.org/xquery/xmldb";
+declare namespace xmldb         = "http://exist-db.org/xquery/xmldb";
+
+import module namespace console = "http://exist-db.org/xquery/console";
+import module namespace functx  = "http://www.functx.com";
+
 import module namespace i18n    = "http://exist-db.org/xquery/i18n"           at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
 import module namespace sutil   = "http://www.salamanca.school/xquery/sutil"  at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
 import module namespace config  = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
 import module namespace net     = "http://www.salamanca.school/xquery/net"    at "xmldb:exist:///db/apps/salamanca/modules/net.xqm";
-import module namespace console = "http://exist-db.org/xquery/console";
-import module namespace functx  = "http://www.functx.com";
 
 (: 
     NOTE: many of the functions below can also be found in eXist's config module
@@ -337,6 +341,24 @@ declare
     return 
         $output
 };  
+
+declare
+    function gui:disclaimerDiv($node as node(), $model as map(*), $lang as xs:string, $aid as xs:string?, $lid as xs:string?, $nid as xs:string?, $wpid as xs:string?, $wid as xs:string?) {
+    if (doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")//tei:revisionDesc/@status eq "h_temporarily_suspended") then
+        <div class="container">
+            <div class="row-fluid alert alert-warning" style="margin-bottom:4px;">
+                <p style="text-align: center;">{doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/string()}</p>
+            </div>
+        </div>
+    else ()
+};
+
+declare
+    function gui:disclaimerSpan($node as node(), $model as map(*), $lang as xs:string, $aid as xs:string?, $lid as xs:string?, $nid as xs:string?, $wpid as xs:string?, $wid as xs:string?) {
+    if (doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")//tei:revisionDesc/@status eq "h_temporarily_suspended") then
+        <span style="color:firebrick;">{doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/string()}</span>
+    else ()
+};
 
 declare
     function gui:header($node as node(), $model as map(*), $lang as xs:string, $aid as xs:string?, $lid as xs:string?, $nid as xs:string?, $wpid as xs:string?, $wid as xs:string?) as element()  {

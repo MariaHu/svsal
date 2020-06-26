@@ -8,30 +8,34 @@ xquery version "3.1";
  ----++++#### :)
 
 module namespace app         = "http://www.salamanca.school/xquery/app";
+
+declare namespace tei        = "http://www.tei-c.org/ns/1.0";
+declare namespace sal        = "http://salamanca.adwmainz.de";
+
 declare namespace exist      = "http://exist.sourceforge.net/NS/exist";
+declare namespace http       = "http://expath.org/ns/http-client";
 declare namespace opensearch = "http://a9.com/-/spec/opensearch/1.1/";
 declare namespace output     = "http://www.w3.org/2010/xslt-xquery-serialization";
 declare namespace rdf        = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
-declare namespace sal        = "http://salamanca.adwmainz.de";
+declare namespace request    = "http://exist-db.org/xquery/request";
 declare namespace session    = "http://exist-db.org/xquery/session";
 declare namespace srw        = "http://www.loc.gov/zing/srw/";
-declare namespace tei        = "http://www.tei-c.org/ns/1.0";
+declare namespace templates  = "http://exist-db.org/xquery/templates";
 declare namespace transform  = "http://exist-db.org/xquery/transform";
 declare namespace util       = "http://exist-db.org/xquery/util";
 declare namespace xhtml      = "http://www.w3.org/1999/xhtml";
 declare namespace xi         = "http://www.w3.org/2001/XInclude";
+declare namespace xmldb      = "http://exist-db.org/xquery/xmldb";
 
-import module namespace http = "http://expath.org/ns/http-client";
-import module namespace config    = "http://www.salamanca.school/xquery/config"                at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace render-app    = "http://www.salamanca.school/xquery/render-app"        at "xmldb:exist:///db/apps/salamanca/modules/render-app.xqm";
-import module namespace sphinx    = "http://www.salamanca.school/xquery/sphinx"                at "xmldb:exist:///db/apps/salamanca/modules/sphinx.xqm";
-import module namespace console   = "http://exist-db.org/xquery/console";
-import module namespace functx    = "http://www.functx.com";
-import module namespace i18n      = "http://exist-db.org/xquery/i18n"        at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
-import module namespace request   = "http://exist-db.org/xquery/request";
-import module namespace templates = "http://exist-db.org/xquery/templates";
-import module namespace iiif      = "http://www.salamanca.school/xquery/iiif"                  at "xmldb:exist:///db/apps/salamanca/modules/iiif.xqm";
-import module namespace sutil    = "http://www.salamanca.school/xquery/sutil" at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
+import module namespace console    = "http://exist-db.org/xquery/console";
+import module namespace functx     = "http://www.functx.com";
+
+import module namespace config     = "http://www.salamanca.school/xquery/config"     at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace render-app = "http://www.salamanca.school/xquery/render-app" at "xmldb:exist:///db/apps/salamanca/modules/render-app.xqm";
+import module namespace sphinx     = "http://www.salamanca.school/xquery/sphinx"     at "xmldb:exist:///db/apps/salamanca/modules/sphinx.xqm";
+import module namespace i18n       = "http://exist-db.org/xquery/i18n"               at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
+import module namespace iiif       = "http://www.salamanca.school/xquery/iiif"       at "xmldb:exist:///db/apps/salamanca/modules/iiif.xqm";
+import module namespace sutil      = "http://www.salamanca.school/xquery/sutil"      at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
 
 (: ============ Helper functions ================= 
  :
@@ -161,7 +165,7 @@ declare function app:AUTfinalFacets ($node as node(), $model as map (*), $lang a
                                     if ($a eq 'theologian') then'"'||<i18n:text key="theologian">Theologe</i18n:text>||'",' else()    
         let $occuFacet      :=  ($orderPhil||$orderTheol)
 :) 
-        let $places         :=  for $b in distinct-values(for $a in ($item//tei:placeName) order by string($a/@key) collation "?lang=es" return
+        let $places         :=  for $b in distinct-values(for $a in ($item//tei:placeName) order by string($a/@key) collation "http://www.w3.org/2013/collation/UCA" return (: "http://exist-db.org/collation?lang=es" return :)
                                     let $placeName := if ($a/@key) then string($a/@key) else $a/text() 
                                     return (: if ($a//(ancestor::tei:occupation | ancestor::tei:affiliation | ancestor::tei:education )/@from) then
                                              $placeName || ': ' || substring-before($a//(ancestor::tei:occupation | ancestor::tei:affiliation | ancestor::tei:education )/@from, '-') || '-' || substring-before($a//(ancestor::tei:occupation | ancestor::tei:affiliation | ancestor::tei:education )/@to, '-')
@@ -265,6 +269,9 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
         let $wid            :=  xs:string($item/parent::tei:TEI/@xml:id)
         let $title          :=  $item/tei:fileDesc/tei:titleStmt/tei:title[@type = 'short']
         let $status         :=  xs:string($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status)
+        let $disclaimer     :=  if ($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status eq "h_temporarily_suspended") then
+                                    $item/ancestor-or-self::tei:TEI//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/string()
+                                else ()
         let $WIPstatus      :=  
             if ($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status =
                                      ( 'a_raw',
@@ -349,6 +356,7 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
         let $output :=
                '&#123;'
             || '"title":'         || '"' || $title          || '",'
+            || '"disclaimer":'    || '"' || $disclaimer     || '",'
             || '"status":'        || '"' || $status         || '",'
             || '"WIPstatus":'     || '"' || $WIPstatus      || '",'
             || '"monoMultiUrl":'  || '"' || $wrkLink        || '",'
@@ -1128,6 +1136,8 @@ declare %templates:wrap
              'currentWorkType': $type}
 };
 
+
+(: -- Display a single Work - this is the core function for loading the reading view -- :)
 declare
     function app:displaySingleWork($node as node(), 
                                         $model as map(*),
@@ -1145,12 +1155,14 @@ declare
             if ($frag || ".html" = xmldb:get-child-resources($htmlPath)) then
                 $frag || ".html"
             else
-                functx:sort(xmldb:get-child-resources($htmlPath))[1]
-        else ()
+                let $debug := if ($config:debug = ('trace')) then console:log('No fragment html file found ($wid=' || $wid || ', $frag=' || $frag || '). Fallback to first fragment...') else ()
+                return functx:sort(xmldb:get-child-resources($htmlPath))[1]
+        else
+            error(xs:QName('app:displaySingleWork'), 'Error: HTML Collection ' || $htmlPath || ' not available.')
 
     let $originalHTMLDoc := doc($htmlPath || "/" || $targetFragment)
 
-    (: Fill in all parameters (except frag) in document's links :)
+    (: If we have url parameters, fill them all (except frag) in document's links :)
     let $urlParameters := 
         string-join((
             if (exists($q))      then 'q=' || $q else (),
@@ -1159,7 +1171,10 @@ declare
             if (exists($lang))   then 'lang=' || $lang else ()
             ), 
         '&amp;')
-    let $parametrizedDoc := local:insertParams($originalHTMLDoc, $urlParameters)
+    let $parametrizedDoc := if ($urlParameters) then
+                                app:insertParams($originalHTMLDoc, $urlParameters)
+                            else
+                                $originalHTMLDoc
 
     (: If we have an active query string, highlight the original html fragment accordingly :)
     let $outHTML := 
@@ -1201,46 +1216,123 @@ return
 ~ (we assume that http links leave the current document and don't need q, mode, viewer or lang params.)
 :)
 declare %private
-    function local:insertParams($node as node(), $params as xs:string?) {
+    function app:insertParams($node as node(), $params as xs:string?) {
     typeswitch($node)
         case element(a) return
             element {name($node)} {
-                for $att in $node/@* return
-                    local:attrInsertParams($att, $params)
+                for $attr in $node/@* return
+(:                  app:attrInsertParams($attr, $params)  try this without 2nd function in order not to lose context/index info :)
+
+                    typeswitch($attr)
+                        case attribute(href) return
+                            if (starts-with($attr, 'http')) then                (: remote file (we assume), so no need to add params :) 
+                                $attr
+                            else
+                                let $openingChar := if (contains($attr, '?')) then '&amp;' else '?'
+                                let $value := 
+                                    if (starts-with($attr, '#')) then           (: local to the current file/fragment, no need to add params :) 
+                                        $attr
+                                    else if (contains($attr, '#')) then         (: another fragment, with anchor :)
+                                        replace($attr, '#', concat($openingChar, $params, '#'))
+                                    else 
+                                        concat($attr, $openingChar, $params)    (: another fragment, no anchor :)
+                                return attribute {name($attr)} {$value}
+                        default return
+                            $attr
+
                 ,
                 for $child in $node/node() return 
-                    local:insertParams($child, $params)
+                    app:insertParams($child, $params)
             }
         case element() return
             element {name($node)} {
-                for $att in $node/@*
-                   return
-                      attribute {name($att)} {$att}
+                for $attr in $node/@* return
+                      attribute {name($attr)} {$attr}
                 ,
                 for $child in $node/node()
-                   return local:insertParams($child, $params)
+                   return app:insertParams($child, $params)
             }
         default return $node
 };
 declare %private
-    function local:attrInsertParams($attr as attribute(), $params as xs:string?) {
+    function app:attrInsertParams($attr as attribute(), $params as xs:string?) {
+    let $debug := console:log("Actually, we shouldn't be here: Function app:attrInsertParams() should not be called anymore! (app.xqm, line 1254ff.)")
+    return
     typeswitch($attr)
         case attribute(href) return
-            if (not(contains($attr, 'http'))) then
+            if (starts-with($attr, 'http')) then                (: remote file (we assume), so no need to add params :) 
+                $attr
+            else
                 let $openingChar := if (contains($attr, '?')) then '&amp;' else '?'
                 let $value := 
-                    if (starts-with($attr, '#')) then 
-                        $attr/string()
-                    else if (contains($attr, '#')) then
+                    if (starts-with($attr, '#')) then           (: local to the current file/fragment, no need to add params :) 
+                        $attr
+                    else if (contains($attr, '#')) then         (: another fragment, with anchor :)
                         replace($attr, '#', concat($openingChar, $params, '#'))
                     else 
-                        concat($attr, $openingChar, $params)
+                        concat($attr, $openingChar, $params)    (: another fragment, no anchor :)
                 return attribute {name($attr)} {$value}
-            else 
-                $attr
         default return
             $attr
 };
+
+(:
+~ Recursively inserts a "q" query parameter into a/href values of an HTML fragment.
+:)
+
+declare %private function app:copyInsertSearchParam($node as node()?, $q as xs:string) {
+    typeswitch($node)
+        case element(a) return
+            element {name($node)} {
+                for $attr in $node/@* return
+(:                    app:attrInsertSearchParam($attr, $q)  try this without 2nd function in order not to lose context/index info :)
+
+                    typeswitch($attr)
+                        case attribute(href) return
+                            let $value := 
+                                if (starts-with($attr, '#')) then 
+                                    $attr
+                                else if (contains($attr, '#')) then
+                                    replace($attr, '#', concat('&amp;q=', $q, '#'))
+                                else 
+                                    concat($attr, '&amp;q=', $q)
+                            return attribute {name($attr)} {$value}
+                        default return
+                            $attr
+
+
+                ,
+                for $child in $node/node()
+                   return app:copyInsertSearchParam($child, $q)
+            }
+        case element() return
+            element {name($node)} {
+                for $attr in $node/@*
+                   return
+                      attribute {name($attr)} {$attr}
+                ,
+                for $child in $node/node()
+                   return app:copyInsertSearchParam($child, $q)
+            }
+        default return $node
+};
+declare %private function app:attrInsertSearchParam($attr as attribute(), $q as xs:string) {
+    let $debug := console:log("Actually, we shouldn't be here: Function app:attrInsertSearchParam() should not be called anymore! (app.xqm, line 1315ff.)")
+    return
+    typeswitch($attr)
+        case attribute(href) return
+            let $value := 
+                if (starts-with($attr, '#')) then 
+                    $attr
+                else if (contains($attr, '#')) then
+                    replace($attr, '#', concat('&amp;q=', $q, '#'))
+                else 
+                    concat($attr, '&amp;q=', $q)
+            return attribute {name($attr)} {$value}
+        default return
+            $attr
+};
+
 
 
 declare function app:searchResultsNav($node as node(), $model as map(*), $q as xs:string?, $lang as xs:string?) {
@@ -1280,7 +1372,7 @@ declare %templates:wrap
             let $firstEd        := $hit//tei:sourceDesc//tei:date[@type = 'firstEd']
             let $thisEd         := $hit//tei:sourceDesc//tei:date[@type = 'thisEd']
             let $ed             := if ($thisEd) then $thisEd else $firstEd
-            let $ref            := session:encode-url(xs:anyURI('work.html?wid=' || $hit/@xml:id/string()))
+            let $ref            := session:encode-url(xs:anyURI('work.html?wid=' || $hit/@xml:id))
             order by $workTitle ascending
             return 
                     <p><a href="{$ref}"><span class="glyphicon glyphicon-file" aria-hidden="true"/>&#xA0;{$workTitle||'&#160;'}({$ed})</a></p>
@@ -1317,19 +1409,19 @@ declare function app:AUTsummary($node as node()) as item()* {
                     </a><i18n:text key="overview">Lebensdaten</i18n:text>
                 </h3>
                 <p class="autText"><!-/-<i class="fa fa-birthday-cake"></i>-/->*&#xA0;
-                    {local:placeNames($node), ': '||$node/tei:date[1]}
+                    {app:placeNames($node), ': '||$node/tei:date[1]}
                 </p>
 -->
-                *&#xA0;{local:placeNames($node) || ': ' || $node/tei:date[1]}
+                *&#xA0;{app:placeNames($node) || ': ' || $node/tei:date[1]}
             </span>
         case element(tei:death) return 
             <span>
 <!--
              <p class="autText"><!-/-<i class="fa fa-plus"></i>-/->†&#xA0;
-                    {local:placeNames($node), ': '||$node/tei:date[1]}
+                    {app:placeNames($node), ': '||$node/tei:date[1]}
             </p>
 -->
-                †&#xA0;{local:placeNames($node) || ': '||$node/tei:date[1]}
+                †&#xA0;{app:placeNames($node) || ': '||$node/tei:date[1]}
             </span>
         case element(tei:head) return if ($node/@xml:id='overview') then () else 
             <span>
@@ -1456,7 +1548,7 @@ declare function local:passthru($nodes as node()*) as item()* {
 
 
 (:funx used in author.html and lemma.html:)
-declare function local:placeNames($node as node()) {
+declare function app:placeNames($node as node()) {
 
     let $placesHTML :=  for $place in $node//tei:placeName
                             let $getGetId   := substring($place/@ref,7,7)
@@ -1592,7 +1684,7 @@ declare %templates:wrap
 
 declare %templates:wrap %templates:default("lang", "en")
     function app:WPvol  ($node as node(), $model as map(*), $lang as xs:string?) {
-       let $link := 'workingPaper.html?wpid=' || $model('currentWp')/@xml:id/string()
+       let $link := 'workingPaper.html?wpid=' || $model('currentWp')/@xml:id
        let $vol := $model('currentWp')//tei:titleStmt/tei:title[@type='short']/string()
        return <h4><a  href="{$link}">{$vol}</a></h4>
 };
@@ -1604,9 +1696,9 @@ declare %templates:wrap
 
 declare %templates:wrap %templates:default("lang", "en")
     function app:WPimg ($node as node(), $model as map(*), $lang as xs:string?) {
-    let $link := 'workingPaper.html?wpid=' || $model('currentWp')/@xml:id/string()
+    let $link := 'workingPaper.html?wpid=' || $model('currentWp')/@xml:id
     let $img  := if ($model('currentWp')//tei:graphic/@url) then
-                       <img style="border: 0.5px solid #E7E7E7; width:90%; height: auto;" src="{$model('currentWp')//tei:graphic/@url/string()}"/>
+                       <img style="border: 0.5px solid #E7E7E7; width:90%; height: auto;" src="{$model('currentWp')//tei:graphic/@url}"/>
                  else ()
     return
        <a href="{$link}">{$img}</a>
@@ -1661,7 +1753,7 @@ declare %templates:wrap
 
 declare %templates:wrap %templates:default("lang", "en")
     function app:WPshowSingle ($node as node(), $model as map(*), $lang as xs:string?) {
-        let $work := <a href="workingPaper.html?wpid=' {$model('currentWp')/@xml:id/string()}">{$model('currentWp')/@xml:id/string()}</a> 
+        let $work := <a href="workingPaper.html?wpid=' {$model('currentWp')/@xml:id}">{$model('currentWp')/@xml:id}</a> 
         return
             $work
 };
@@ -1784,7 +1876,7 @@ declare %templates:wrap function app:WRKcatRecord($node as node(), $model as map
     let $workType := $model('currentWorkType')
     let $volumeIds :=   
         if ($workType eq 'work_multivolume') then 
-            for $item in $model('currentWorkHeader')/tei:fileDesc/tei:notesStmt/tei:relatedItem[@type eq 'work_volume'] return substring-after($item/@target/string(), 'work:')
+            for $item in $model('currentWorkHeader')/tei:fileDesc/tei:notesStmt/tei:relatedItem[@type eq 'work_volume'] return substring-after($item/@target, 'work:')
         else ()
     let $multivolInfo := 
         if ($workType eq 'work_volume') then
@@ -2013,7 +2105,7 @@ declare function app:WRKisPublished($node as node(), $model as map(*), $wid as x
         else if (doc-available($config:tei-works-root || '/' || $workId || '.xml')) then 
             doc($config:tei-works-root || '/' || $workId || '.xml')/tei:TEI/tei:teiHeader/tei:revisionDesc/@status/string()
         else 'no_status'
-    let $publishedStatus := ('g_enriched_approved', 'h_revised', 'i_revised_approved', 'z_final')
+    let $publishedStatus := ('g_enriched_approved', 'h_revised', 'h_temporarily_suspended', 'i_revised_approved', 'z_final')
     return $status = $publishedStatus
 };
 
@@ -2360,7 +2452,7 @@ declare function app:WRKprintMetadata($node as node(), $model as map(*), $wid as
         if ($sourceDesc//tei:pubPlace[@role eq 'thisEd']) then $sourceDesc//tei:pubPlace[@role eq 'thisEd']/@key/string()
         else $sourceDesc//tei:pubPlace[@role eq 'firstEd']/@key/string()
     let $volumeNumber := if ($type eq 'work_volume') then $sourceDesc//tei:series/tei:biblScope/@n/string() else ()
-    let $volumeTitle := if ($type eq 'work_volume') then $sourceDesc//tei:monogr/tei:title[@type ='volume']/text() else ()
+    let $volumeTitle := if ($type eq 'work_volume') then $sourceDesc//tei:monogr/tei:title[@type ='volume']/string() else ()
     let $totalVolumes := 
         if ($type eq 'work_volume') then 
             string(count(doc($config:tei-works-root || '/' || substring-before($workId, '_Vol') || '.xml')/tei:TEI/tei:teiHeader//tei:notesStmt/tei:relatedItem[@type eq 'work_volume']))
@@ -2945,54 +3037,12 @@ declare function app:WRKtoc($node as node(), $model as map(*), $wid as xs:string
                 transform:transform($tocDoc, $xslSheet, $parameters)
             :)
             return 
-                local:copyInsertSearchParam($tocDoc/*, $q)
+                app:copyInsertSearchParam($tocDoc/*, $q)
          else
             doc($config:html-root || '/' || sutil:normalizeId($wid) || '/' || sutil:normalizeId($wid) || '_toc.html')
     return 
         $toc
 };
-
-
-(:
-~ Recursively inserts a "q" query parameter into a/href values of an HTML fragment.
-:)
-
-declare %private function local:copyInsertSearchParam($node as node()?, $q as xs:string) {
-    typeswitch($node)
-        case element(a) return
-            element {name($node)} {
-                for $att in $node/@* return
-                    local:attrInsertSearchParam($att, $q)
-                ,
-                for $child in $node/node()
-                   return local:copyInsertSearchParam($child, $q)
-            }
-        case element() return
-            element {name($node)} {
-                for $att in $node/@*
-                   return
-                      attribute {name($att)} {$att}
-                ,
-                for $child in $node/node()
-                   return local:copyInsertSearchParam($child, $q)
-            }
-        default return $node
-};
-declare %private function local:attrInsertSearchParam($attr as attribute(), $q as xs:string) {
-    typeswitch($attr)
-        case attribute(href) return
-            let $value := 
-                if (starts-with($attr, '#')) then 
-                    $attr/string()
-                else if (contains($attr, '#')) then
-                    replace($attr, '#', concat('&amp;q=', $q, '#'))
-                else 
-                    concat($attr, '&amp;q=', $q)
-            return attribute {name($attr)} {$value}
-        default return
-            $attr
-};
-
 
 (:declare function app:downloadTXT($node as node(), $model as map(*), $mode as xs:string, $lang as xs:string) {
     let $wid := request:get-parameter('wid', '')
@@ -3263,7 +3313,7 @@ declare function app:loadWRKpagination ($node as node(), $model as map (*), $wid
     return 
         if ($q) then
 (:            transform:transform($pagesFile, $xslSheet, $parameters):)
-            local:copyInsertSearchParam($pagesFile/*, $q)
+            app:copyInsertSearchParam($pagesFile/*, $q)
         else
             $pagesFile
 };
@@ -3274,13 +3324,13 @@ declare function app:WRKpaginationQ ($node as node(), $model as map(*), $wid as 
 { if ($q) then
     let $workId    :=  if ($wid) then $wid else $model("currentWork")/@xml:id
     for $pb in doc($config:index-root || "/" || $workId || '_nodeIndex.xml')//sal:node[@type="pb"][not(@subtype = ('sameAs', 'corresp'))]
-        let $fragment := $pb/sal:fragment
+        let $fragment := $pb/@fragment
         let $volume   := () (/: if (starts-with($pb/sal:crumbtrail/a[1]/text(), 'Vol. ')) then
                             $pb/sal:crumbtrail/a[1]/text() || ','
                          else () :/)
         let $url      := 'work.html?wid='||$workId || '&amp;' || 'frag='|| $fragment|| '&amp;q=' ||$q|| concat('#', replace($pb/@n, 'facs_', 'pageNo_'))
     return 
-        <li role="presentation"><a role="menuitem" tabindex="-1" href="{$url}">{normalize-space($volume || $pb/sal:title)}</a></li>
+        <li role="presentation"><a role="menuitem" tabindex="-1" href="{$url}">{normalize-space($volume || $pb/@title)}</a></li>
         else ()
 }
 </ul>

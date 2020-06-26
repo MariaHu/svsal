@@ -1,21 +1,24 @@
 xquery version "3.1";
 
-module namespace sutil = "http://www.salamanca.school/xquery/sutil";
-
-import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace util       = "http://exist-db.org/xquery/util";
-import module namespace templates = "http://exist-db.org/xquery/templates";
-import module namespace i18n      = "http://exist-db.org/xquery/i18n"        at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
-
-declare namespace tei = "http://www.tei-c.org/ns/1.0";
-declare namespace sal = "http://salamanca.adwmainz.de"; 
- 
-(:
+(: ####++++----
 
 Module for util functions that are of a general nature and used by multiple other modules.
 Bundling such functions here shall prevent interdependencies between larger and more specific modules.
 
-:)
+ ----++++#### :)
+
+module namespace sutil = "http://www.salamanca.school/xquery/sutil";
+
+declare namespace tei          = "http://www.tei-c.org/ns/1.0";
+declare namespace sal          = "http://salamanca.adwmainz.de"; 
+
+declare namespace templates    = "http://exist-db.org/xquery/templates";
+declare namespace util         = "http://exist-db.org/xquery/util";
+
+import module namespace console    = "http://exist-db.org/xquery/console";
+
+import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace i18n   = "http://exist-db.org/xquery/i18n"           at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
 
 
 (:
@@ -99,7 +102,7 @@ declare function sutil:WPisPublished($wpid as xs:string?) as xs:boolean {
 };
 
 declare function sutil:WRKexists($wid as xs:string?) as xs:boolean {
-    if ($wid) then boolean(doc($config:tei-meta-root || '/' || 'sources-list.xml')/tei:TEI/tei:text//tei:bibl[lower-case(substring-after(@corresp, 'work:')) eq lower-case($wid)])
+    if ($wid) then boolean(doc($config:tei-meta-root || '/' || 'sources-list.xml')/tei:TEI/tei:text//tei:bibl/@corresp[lower-case(substring-after(., 'work:')) eq lower-case($wid)])
     else false()
 };
 
@@ -118,7 +121,7 @@ declare function sutil:WRKisPublished($wid as xs:string) as xs:boolean {
     let $status :=  if (doc-available($config:tei-works-root || '/' || $workId || '.xml')) then 
                         doc($config:tei-works-root || '/' || $workId || '.xml')/tei:TEI/tei:teiHeader/tei:revisionDesc/@status/string()
                     else 'no_status'
-    let $publishedStatus := ('g_enriched_approved', 'h_revised', 'i_revised_approved', 'z_final')
+    let $publishedStatus := ('g_enriched_approved', 'h_revised', 'h_temporarily_suspended', 'i_revised_approved', 'z_final')
     return $status = $publishedStatus
 };
 
@@ -178,15 +181,23 @@ declare function sutil:getNodeIndexValue($wid as xs:string, $node as element()) 
 };
 
 declare function sutil:getFragmentID($targetWorkId as xs:string, $targetNodeId as xs:string) as xs:string? {
-    doc($config:index-root || '/' || $targetWorkId || '_nodeIndex.xml')//sal:node[@n = $targetNodeId][1]/sal:fragment/text()
+    doc($config:index-root || '/' || $targetWorkId || '_nodeIndex.xml')//sal:node[@n = $targetNodeId][1]/@fragment
 };
 
 declare function sutil:getNodetrail($wid as xs:string, $node as element(), $mode as xs:string) {
-    let $debug := 
-        if ($mode = ('citetrail', 'crumbtrail', 'passagetrail')) then () 
-        else () (:util:log('error', '[sutil] calling render:getNodetrail with unknown mode: ' || $mode):)
-    return
-        doc($config:index-root || '/' || $wid || '_nodeIndex.xml')/sal:index/sal:node[@n eq $node/@xml:id]/*[local-name() eq $mode]/node()
+    switch ($mode)
+        case 'citeID'
+            return doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@n eq $node/@xml:id]/@citeID
+        case 'label'
+            return doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@n eq $node/@xml:id]/@label
+        case 'crumbtrail'
+            return doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@n eq $node/@xml:id]/sal:crumbtrail/node()
+        default
+            return
+ let $debug := if ($config:debug = ("trace", "info")) then
+                              console:log("[SUTIL] sutil:getNodetrail called with invalid mode.")
+                          else ()
+            return ""
 };
 
 (:
@@ -260,13 +271,13 @@ declare %templates:wrap
 
 
 (:
-~ For a $citetrail and a $workId, fetches the matching node from the respective TEI dataset.
+~ For a $citeID and a $workId, fetches the matching node from the respective TEI dataset.
 :)
-declare function sutil:getTeiNodeFromCitetrail($workId as xs:string, $citetrail as xs:string?) as element()? {
+declare function sutil:getTeiNodeFromCiteID($workId as xs:string, $citeID as xs:string?) as element()? {
     let $nodeId :=    
-        if ($citetrail) then
+        if ($citeID) then
             let $nodeIndex := doc($config:index-root || '/' || sutil:normalizeId($workId) || '_nodeIndex.xml')
-            let $id := $nodeIndex//sal:node[sal:citetrail eq $citetrail][1]/@n[1]
+            let $id := $nodeIndex//sal:node[@citeID eq $citeID][1]/@n[1]
             return $id 
         else 'completeWork'
     return
@@ -279,8 +290,8 @@ declare function sutil:getTeiNodeFromCitetrail($workId as xs:string, $citetrail 
 (: Modes for generating citation recommendations: 
     - "record" for generic citations in catalogue records 
     - "reading-full" for generic citations in reading view; access date has to be appended elsewhere
-    - "reading-passage" for fine-granular citations in reading view, including passagetrail - this yields two <span>s, 
-        between the two of which the acces date has to be inserted (e.g., by means of JS)
+    - "reading-passage" for fine-granular citations in reading view, including label - this yields two <span>s, 
+        between the two of which the access date has to be inserted (e.g., by means of JS)
 :)
 declare function sutil:HTMLmakeCitationReference($wid as xs:string, $fileDesc as element(tei:fileDesc), $mode as xs:string, $node as element()?) as element(span)+ {
     let $author := $fileDesc/tei:titleStmt/tei:author/tei:persName/tei:surname/text()
@@ -294,21 +305,21 @@ declare function sutil:HTMLmakeCitationReference($wid as xs:string, $fileDesc as
         string-join(for $ed in $fileDesc/tei:seriesStmt/tei:editor/tei:persName 
                         order by $ed/tei:surname
                         return app:rotateFormatName($ed), ' &amp; '):)
-    let $citetrail :=
+    let $citeID :=
         if ($mode eq 'reading-passage' and $node) then
-            sutil:getNodetrail($wid, $node, 'citetrail')
+            sutil:getNodetrail($wid, $node, 'citeID')
         else ()
-    let $citetrailStr := if ($citetrail) then ':' || $citetrail else ()
-    let $link := $config:idserver || '/texts/' || $wid || $citetrailStr || (if ($mode eq 'reading-passage') then '?format=html' else ())
-    let $passagetrail := 
+    let $citeIDStr := if ($citeID) then ':' || $citeID else ()
+    let $link := $config:idserver || '/texts/' || $wid || $citeIDStr || (if ($mode eq 'reading-passage') then '?format=html' else ())
+    let $label := 
         if ($mode eq 'reading-passage' and $node) then
-            let $passage := sutil:getNodetrail($wid, $node, 'passagetrail')
+            let $passage := sutil:getNodetrail($wid, $node, 'label')
             return 
                 if ($passage) then <span class="cite-rec-trail">{$passage || ', '}</span> else ()
         else ()
     let $body := 
         <span class="cite-rec-body">{$author || ', ' || $title || ' (' || $digitalYear || ' [' || $originalYear || '])'|| ', '}
-            {$passagetrail}
+            {$label}
             <i18n:text key="inLow">in</i18n:text>{': '}<i18n:text key="editionSeries">The School of Salamanca. A Digital Collection of Sources</i18n:text>
             {' <'}
             <a href="{$link}">{$link}</a>
@@ -319,4 +330,9 @@ declare function sutil:HTMLmakeCitationReference($wid as xs:string, $fileDesc as
 };
 
 
-
+declare function sutil:strip-diacritics($string as xs:string) as xs:string {
+    let $normalized := normalize-unicode($string, 'NFD')
+    let $stripped := replace($normalized, '\p{IsCombiningDiacriticalMarks}', '')
+    return
+        $stripped
+};

@@ -8,14 +8,18 @@ xquery version "3.1";
 
 ----++++#### :)
 
-declare namespace exist             = "http://exist.sourceforge.net/NS/exist";
-declare namespace request           = "http://exist-db.org/xquery/request";
-declare namespace output            = "http://www.w3.org/2010/xslt-xquery-serialization";
-import module namespace admin       = "http://www.salamanca.school/xquery/admin" at "modules/admin.xqm";
-import module namespace config    = "http://www.salamanca.school/xquery/config" at "config.xqm";
-import module namespace util        = "http://exist-db.org/xquery/util";
+declare namespace exist        = "http://exist.sourceforge.net/NS/exist";
+declare namespace output       = "http://www.w3.org/2010/xslt-xquery-serialization";
+declare namespace request      = "http://exist-db.org/xquery/request";
+declare namespace util         = "http://exist-db.org/xquery/util";
+
+import module namespace console     = "http://exist-db.org/xquery/console";
+
+import module namespace admin  = "http://www.salamanca.school/xquery/admin"  at "modules/admin.xqm";
+import module namespace config = "http://www.salamanca.school/xquery/config" at "config.xqm";
 
 declare option exist:timeout "43200000"; (: 12 h :)
+declare option exist:output-size-limit "5000000"; (: max number of nodes in memory :)
 
 declare option output:media-type "text/html";
 declare option output:method "xhtml";
@@ -33,7 +37,7 @@ let $checkIndex :=
     (: if work rendering (HTML, snippet, RDF) is requested, we need to make sure that there is an index file :)
     if (starts-with($rid, 'W0') and not($format = ('index', 'iiif', 'all'))) then
         if (doc-available($config:index-root || '/' || $rid || '_nodeIndex.xml')) then ()
-        else error(xs:QName('webdata-admin.xql'), 'There is no index file.')
+        else error(xs:QName('webdata-admin.xql'), 'Mode=' || $mode || ', but there is no index file for ' || $rid || '.')
     else ()
 
 let $output :=
@@ -80,7 +84,9 @@ let $title :=
         'Webdata Output for Format "' || $format || '"'
     else 'Webdata Output for Resource(s): "' || $rid || '"; Format: "' || $format || '"'
 
-return 
+let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Done.") else ()
+
+return
     <html>
         <head>
             <title>Webdata Administration - The School of Salamanca</title>

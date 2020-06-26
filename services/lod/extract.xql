@@ -1,4 +1,4 @@
-xquery version "3.0";
+xquery version "3.1";
 
 (:~
  : XTriples
@@ -40,16 +40,18 @@ import module namespace console  = "http://exist-db.org/xquery/console";
 import module namespace xconfig  = "http://xtriples.spatialhumanities.de/config" at "modules/xconfig.xqm";
 
 (: ### SVSAL modules and namespaces ### :)
-declare namespace exist       = "http://exist.sourceforge.net/NS/exist";
+declare namespace sal		   = "http://salamanca.adwmainz.de";
+declare namespace rdf           = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+
+declare namespace exist         = "http://exist.sourceforge.net/NS/exist";
 declare namespace http		  = "http://expath.org/ns/http-client";
+declare namespace map           = "http://www.w3.org/2005/xpath-functions/map";
 declare namespace request	   = "http://exist-db.org/xquery/request";
 declare namespace response	  = "http://exist-db.org/xquery/response";
-declare namespace xmldb		 = "http://exist-db.org/xquery/xmldb";
-declare namespace util		  = "http://exist-db.org/xquery/util";
 declare namespace sm			= "http://exist-db.org/xquery/securitymanager";
 declare namespace transform	 = "http://exist-db.org/xquery/transform";
-declare namespace sal		   = "http://salamanca.adwmainz.de";
-declare namespace rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+declare namespace util		  = "http://exist-db.org/xquery/util";
+declare namespace xmldb		 = "http://exist-db.org/xquery/xmldb";
 (: ### End SVSAL modules and namespaces ### :)
 
 declare namespace xtriples = "http://xtriples.spatialhumanities.de/";
@@ -61,6 +63,7 @@ declare variable $retrievedDocuments := map { };
 (: ########## SVSAL FUNCTIONS ###################################################################### :)
 
 declare option exist:timeout "43200000"; (: 12 h :)
+declare option exist:output-size-limit "5000000"; (: max number of nodes in memory :)
 
 (:
 	better: build it as we go... in
@@ -208,7 +211,6 @@ declare function local:cache-doc($docURI as xs:string, $callback as function() a
                                         local:guess-mimeType-from-suffix(functx:substring-after-last($docURI, '.'))[1]
             
             let $retrievedDocuments := map:put($retrievedDocuments, $docURI, map { "date" : current-dateTime(), "data" : $content })
-(:            let $debug1 := console:log($retrievedDocuments):)
             let $logMessage := concat('xtriples:cache-doc(): remembered document ', $docURI)
             let $logToFile  := local:logToFile('info', $logMessage)
             let $debug1 :=  local:log (
@@ -427,7 +429,7 @@ declare function local:log($message as xs:string, $priority as xs:string?) {
 	let $prio := if ($priority) then $priority else "trace"
 	return try  {
 					let $consoleOutput :=   if ($xconfig:debug = "trace" or $prio = ("info", "warn", "error")) then
-												console:log($message)
+												console:log("xtriples", $message)
 											else ()
 					let $fileOutput	:= local:logToFile($prio, $message)
 					return true()
@@ -448,7 +450,6 @@ declare function local:log($message as xs:string, $priority as xs:string?) {
 :)
 declare function local:logToFile($priority as xs:string, $message as xs:string) {
 	let $file	:= $xconfig:logfile
-(:  let $message := concat($message, ' (rev. ', xconfig:getCurrentSvnRev(), ')') :)
 	return  (
 				let $log := util:log-app($priority, $file, $message)
 				return if ($xconfig:debug = "trace" or $priority = ('error', 'warn')) then
@@ -512,6 +513,7 @@ declare function xtriples:expressionSanityCheck($expression as xs:string) as xs:
 (:  let $pattern := "((fn:.*\(.*\))|(doc*\(.*\))|(collection*\(.*\))|(v:.*\(.*\))|(backups:.*\(.*\))|(compression:.*\(.*\))|(contentextraction:.*\(.*\))|(counter:.*\(.*\))|(cqlparser:.*\(.*\))|(datetime:.*\(.*\))|(examples:.*\(.*\))|(exi:.*\(.*\))|(file:.*\(.*\))|(httpclient:.*\(.*\))|(image:.*\(.*\))|(inspection:.*\(.*\))|(jindi:.*\(.*\))|(kwic:.*\(.*\))|(lucene:.*\(.*\))|(mail:.*\(.*\))|(math:.*\(.*\))|(ngram:.*\(.*\))|(repo:.*\(.*\))|(request:.*\(.*\))|(response:.*\(.*\))|(scheduler:.*\(.*\))|(securitymanager:.*\(.*\))|(sequences:.*\(.*\))|(session:.*\(.*\))|(sort:.*\(.*\))|(sql:.*\(.*\))|(system:.*\(.*\))|(testing:.*\(.*\))|(text:.*\(.*\))|(transform:.*\(.*\))|(util:.*\(.*\))|(validation:.*\(.*\))|(xmldb:.*\(.*\))|(xmldiff:.*\(.*\))|(xqdoc:.*\(.*\))|(xslfo:.*\(.*\))|(config:.*\(.*\))|(docbook:.*\(.*\))|(app:.*\(.*\))|(dash:.*\(.*\))|(service:.*\(.*\))|(login-helper:.*\(.*\))|(packages:.*\(.*\))|(service:.*\(.*\))|(usermanager:.*\(.*\))|(demo:.*\(.*\))|(cex:.*\(.*\))|(ex:.*\(.*\))|(apputil:.*\(.*\))|(site:.*\(.*\))|(pretty:.*\(.*\))|(date:.*\(.*\))|(tei2:.*\(.*\))|(dbutil:.*\(.*\))|(docs:.*\(.*\))|(dq:.*\(.*\))|(review:.*\(.*\))|(epub:.*\(.*\))|(l18n:.*\(.*\))|(intl:.*\(.*\))|(restxq:.*\(.*\))|(tmpl:.*\(.*\))|(templates:.*\(.*\))|(trigger:.*\(.*\))|(jsjson:.*\(.*\))|(xqdoc:.*\(.*\)))":)
 	let $pattern := "((fn:.*\(.*\))|(collection*\(.*\))|(v:.*\(.*\))|(backups:.*\(.*\))|(compression:.*\(.*\))|(contentextraction:.*\(.*\))|(counter:.*\(.*\))|(cqlparser:.*\(.*\))|(datetime:.*\(.*\))|(examples:.*\(.*\))|(exi:.*\(.*\))|(file:.*\(.*\))|(httpclient:.*\(.*\))|(http:.*\(.*\))|(image:.*\(.*\))|(inspection:.*\(.*\))|(jindi:.*\(.*\))|(kwic:.*\(.*\))|(lucene:.*\(.*\))|(mail:.*\(.*\))|(math:.*\(.*\))|(ngram:.*\(.*\))|(repo:.*\(.*\))|(request:.*\(.*\))|(response:.*\(.*\))|(scheduler:.*\(.*\))|(securitymanager:.*\(.*\))|(sequences:.*\(.*\))|(session:.*\(.*\))|(sort:.*\(.*\))|(sql:.*\(.*\))|(system:.*\(.*\))|(testing:.*\(.*\))|(text:.*\(.*\))|(transform:.*\(.*\))|(util:.*\(.*\))|(validation:.*\(.*\))|(xmldb:.*\(.*\))|(xmldiff:.*\(.*\))|(xqdoc:.*\(.*\))|(xslfo:.*\(.*\))|(config:.*\(.*\))|(docbook:.*\(.*\))|(app:.*\(.*\))|(dash:.*\(.*\))|(service:.*\(.*\))|(login-helper:.*\(.*\))|(packages:.*\(.*\))|(service:.*\(.*\))|(usermanager:.*\(.*\))|(demo:.*\(.*\))|(cex:.*\(.*\))|(ex:.*\(.*\))|(apputil:.*\(.*\))|(site:.*\(.*\))|(pretty:.*\(.*\))|(date:.*\(.*\))|(tei2:.*\(.*\))|(dbutil:.*\(.*\))|(docs:.*\(.*\))|(dq:.*\(.*\))|(review:.*\(.*\))|(epub:.*\(.*\))|(l18n:.*\(.*\))|(intl:.*\(.*\))|(restxq:.*\(.*\))|(tmpl:.*\(.*\))|(templates:.*\(.*\))|(trigger:.*\(.*\))|(jsjson:.*\(.*\))|(xqdoc:.*\(.*\)))"
 	let $check := matches($expression, $pattern)
+    let $debug := local:log("Expression sanity check failed for expression '" || $expression || "'.", "error")
 
 	return (not($check))
 };
@@ -606,13 +608,25 @@ declare function xtriples:expressionBasedAttributeResolver($currentResource as n
 (: evaluates expressions in curly braces within a document string and retrieves the document :)
 declare function xtriples:expressionBasedResourceResolver($collection as node()*, $resource as node()*) as item()* {
 
-	let $collectionContent := if (fn:doc-available($collection/@uri)) then fn:doc($collection/@uri) else ""
+    let $collectionURI         := $collection/@uri
+	let $resourcesURI          := $resource/@uri
 
-	let $resourcesURI          := string($resource/@uri)
-	let $resourcesExpression   := concat('$collectionContent', substring-after(substring-before($resourcesURI, "}"), "{"))
+	let $collectionContent := if (fn:doc-available($collectionURI)) then
+                                let $debug := local:log("get " || $collectionURI || "...", "info")
+                                return fn:doc($collectionURI)
+                              else
+                                let $debug := local:log("fail, return empty string.", "error")
+                                return ""
+
+    let $debug := local:log("$collectionContent's first node is a " || $collectionContent/*[1]/local-name(.) || " node.", "trace")
+    let $debug := local:log("$collectionContent has " || count($collectionContent/*/*) || " nodes on second level.", "trace")
+
+	let $resourcesExpression   := concat('$collectionContent', substring-after(substring-before($resourcesURI, "}", "info"), "{"))
+
 	let $resourcesNodes        := if (xtriples:expressionSanityCheck($resourcesExpression) = true()) then 
 		try { util:eval($resourcesExpression) } catch * { $err:description } 
 		else $resourcesExpression
+    let $debug := local:log("$resourcesNodes contains " || count($resourcesNodes) || " nodes.", "trace")
 
 	let $resources := 
 		for $resource at $index in $resourcesNodes
@@ -620,7 +634,8 @@ declare function xtriples:expressionBasedResourceResolver($collection as node()*
 				if ($resource instance of element()) then
 					$resource
 				else
-					element {"resource"} {
+                    let $debug := local:log("resource " || $resourcesURI || " becomes " || $resource || ".", "trace")
+					return element {"resource"} {
 						attribute {"uri"} {replace($resourcesURI, "\{.*\}", $resource)}
 					}
 	return $resources

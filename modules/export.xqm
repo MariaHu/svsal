@@ -20,30 +20,33 @@ xquery version "3.1";
  
 module namespace export = "http://www.salamanca.school/xquery/export";
 
-declare namespace exist   = "http://exist.sourceforge.net/NS/exist";
-declare namespace output  = "http://www.w3.org/2010/xslt-xquery-serialization";
 declare namespace sal     = "http://salamanca.adwmainz.de";
 declare namespace tei     = "http://www.tei-c.org/ns/1.0";
+
+declare namespace console = "http://exist-db.org/xquery/console";
+declare namespace exist   = "http://exist.sourceforge.net/NS/exist";
+declare namespace output  = "http://www.w3.org/2010/xslt-xquery-serialization";
+declare namespace util    = "http://exist-db.org/xquery/util";
 declare namespace xi      = "http://www.w3.org/2001/XInclude";
-declare namespace util       = "http://exist-db.org/xquery/util";
-(:import module namespace console    = "http://exist-db.org/xquery/console";:)
+declare namespace xmldb   = "http://exist-db.org/xquery/xmldb";
 (:import module namespace functx     = "http://www.functx.com";:)
-import module namespace config    = "http://www.salamanca.school/xquery/config"               at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace sutil    = "http://www.salamanca.school/xquery/sutil" at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
+
+import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace sutil  = "http://www.salamanca.school/xquery/sutil"  at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
 
 
 (:~
 Fetches the teiHeader of a work's dataset.
 @param mode: 'metadata' for reduced teiHeader without text-related information such as charDecl and revisionDesc
 ~:)
-declare function export:WRKgetTeiHeader($wid as xs:string?, $mode as xs:string?, $citetrail as xs:string?) as element(tei:teiHeader) {
+declare function export:WRKgetTeiHeader($wid as xs:string?, $mode as xs:string?, $citeID as xs:string?) as element(tei:teiHeader) {
     let $expanded := 
         if (doc-available($config:tei-works-root || '/' || sutil:normalizeId($wid) || '.xml')) then 
             util:expand(doc($config:tei-works-root || '/' || sutil:normalizeId($wid) || '.xml')/tei:TEI/tei:teiHeader)
         else ()
     let $header :=  
         if ($mode = ('metadata', 'passage')) then 
-            let $processedHeader := local:processHeaderNode($wid, $expanded, $mode, $citetrail)
+            let $processedHeader := local:processHeaderNode($wid, $expanded, $mode, $citeID)
             return 
                 element {QName('http://www.tei-c.org/ns/1.0', 'teiHeader')} {
                     (:($nodes, $encodingDesc):)
@@ -57,7 +60,7 @@ declare function export:WRKgetTeiHeader($wid as xs:string?, $mode as xs:string?,
 (:
 ~ Recursive teiHeader processing function for fine-grained filtering of header information depending on $mode.
 :)
-declare function local:processHeaderNode($wid as xs:string, $node as node(), $mode as xs:string?, $citetrail as xs:string?) {
+declare function local:processHeaderNode($wid as xs:string, $node as node(), $mode as xs:string?, $citeID as xs:string?) {
     switch($mode)
         case 'metadata' return
             typeswitch($node)
@@ -65,7 +68,7 @@ declare function local:processHeaderNode($wid as xs:string, $node as node(), $mo
                 (:case element(tei:encodingDesc) return ():)
                 case element(tei:charDecl) return ()
                 case element() return
-                    local:copyHeaderElement($wid, $node, $mode, $citetrail)
+                    local:copyHeaderElement($wid, $node, $mode, $citeID)
                 case attribute() return () 
                 case comment() return ()
                 case text() return $node
@@ -76,26 +79,26 @@ declare function local:processHeaderNode($wid as xs:string, $node as node(), $mo
                 case element(tei:notesStmt) return ()
                 case element(tei:idno) return
                     if (count($node/text()[matches(., $wid)]) eq 1) then 
-                        (: add specific citetrail to work id :)
+                        (: add specific citeID to work id :)
                         element {QName('http://www.tei-c.org/ns/1.0', local-name($node))} {
                             $node/@*,
-                            replace($node/text()[matches(., $wid)], $wid, $wid || ':' || $citetrail)   
+                            replace($node/text()[matches(., $wid)], $wid, $wid || ':' || $citeID)   
                         }
                     else 
-                        local:copyHeaderElement($wid, $node, $mode, $citetrail)
+                        local:copyHeaderElement($wid, $node, $mode, $citeID)
                 case element(tei:title) return
                     if ($node/ancestor::tei:titleStmt) then
-                        let $passagetrail := 
-                            doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[sal:citetrail/text() eq $citetrail]/sal:passagetrail/text()
+                        let $label := 
+                            doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@citeID eq $citeID]/@label/string()
                         return
                             element {QName('http://www.tei-c.org/ns/1.0', local-name($node))} {
                                 $node/@*,
-                                $node/text() || (if ($passagetrail) then ', ' || $passagetrail else ())
+                                $node/text() || (if ($label) then ', ' || $label else ())
                             }
                     else 
-                        local:copyHeaderElement($wid, $node, $mode, $citetrail)
+                        local:copyHeaderElement($wid, $node, $mode, $citeID)
                 case element() return
-                    local:copyHeaderElement($wid, $node, $mode, $citetrail)
+                    local:copyHeaderElement($wid, $node, $mode, $citeID)
                 (: omittable node types :)
                 case comment() return ()
                 case attribute() return ()
@@ -106,22 +109,22 @@ declare function local:processHeaderNode($wid as xs:string, $node as node(), $mo
             $node
 };
 
-declare function local:passthruHeaderNode($wid as xs:string, $node as node(), $mode as xs:string?, $citetrail as xs:string?) as node()* {
-    for $child in $node/node() return local:processHeaderNode($wid, $child, $mode, $citetrail)
+declare function local:passthruHeaderNode($wid as xs:string, $node as node(), $mode as xs:string?, $citeID as xs:string?) as node()* {
+    for $child in $node/node() return local:processHeaderNode($wid, $child, $mode, $citeID)
 };
 
 (: Namespaces are removed here :)
-declare function local:copyHeaderElement($wid as xs:string, $node as node(), $mode as xs:string?, $citetrail as xs:string?) {
+declare function local:copyHeaderElement($wid as xs:string, $node as node(), $mode as xs:string?, $citeID as xs:string?) {
     element {QName('http://www.tei-c.org/ns/1.0', local-name($node))} {
         $node/@*,
-        local:passthruHeaderNode($wid, $node, $mode, $citetrail)
+        local:passthruHeaderNode($wid, $node, $mode, $citeID)
     }
 };
 
 (:
-~ For a given citetrail, returns the respective TEI node (hierarchically embedded) and a teiHeader.
+~ For a given citeID, returns the respective TEI node (hierarchically embedded) and a teiHeader.
 :)
-declare function export:WRKgetTeiPassage($wid as xs:string, $citetrail as xs:string) as element(tei:TEI)? {
+declare function export:WRKgetTeiPassage($wid as xs:string, $citeID as xs:string) as element(tei:TEI)? {
     let $workPath := $config:tei-works-root || '/' || sutil:normalizeId($wid) || '.xml'
     let $indexPath := $config:index-root || '/' || sutil:normalizeId($wid) || '_nodeIndex.xml'
     let $tei := 
@@ -130,14 +133,14 @@ declare function export:WRKgetTeiPassage($wid as xs:string, $citetrail as xs:str
         else ()
     return
         if ($tei) then
-            let $id := doc($indexPath)//sal:node[sal:citetrail/text() eq $citetrail]/@n/string()
+            let $id := doc($indexPath)//sal:node[@citeID eq $citeID]/@n/string()
             let $node := $tei/tei:text//*[@xml:id eq $id]
             let $wrappedNode := local:wrapInAncestorNode($node, $node)
-            let $teiHeader := export:WRKgetTeiHeader($wid, 'passage', $citetrail)
+            let $teiHeader := export:WRKgetTeiHeader($wid, 'passage', $citeID)
             return
                 element {fn:QName('http://www.tei-c.org/ns/1.0', 'TEI')} {
                     $node/ancestor::tei:TEI/(@* except @xml:id),
-                    attribute xml:id {$wid || '_' || $citetrail},
+                    attribute xml:id {$wid || '_' || $citeID},
                     ($teiHeader,
                      $wrappedNode)
                 }

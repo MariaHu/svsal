@@ -84,9 +84,11 @@ return
 
     (: *** Redirects for special resources (robots.txt, sitemap, void.ttl; specified by resource name *** :)
     if (lower-case($exist:resource) = "robots.txt") then
-        let $debug          := if ($config:debug = "trace") then console:log("Robots.txt requested: " || $net:forwardedForServername || $exist:path || ".") else ()
-        let $parameters     := <exist:add-parameter name="Cache-Control" value="max-age=3600, must-revalidate"/>
-        return net:forward("/robots.txt", $netVars, $parameters)
+        if ($config:instanceMode ne "production") then
+            let $debug          := if ($config:debug = "trace") then console:log("Robots.txt requested: " || $net:forwardedForServername || $exist:path || ".") else ()
+            let $parameters     := <exist:add-parameter name="Cache-Control" value="max-age=3600, must-revalidate"/>
+            return net:forward("/robots.txt", $netVars, $parameters)
+        else ()
     else if (matches(lower-case($exist:path), '^/sitemap(_index)?.xml$') or
              matches(lower-case($exist:path), '^/sitemap_(en|de|es).xml(.(gz|zip))?$')) then
         let $debug          := if ($config:debug = ("trace", "info")) then console:log("Sitemap requested: " || $net:forwardedForServername || $exist:path || ".") else ()

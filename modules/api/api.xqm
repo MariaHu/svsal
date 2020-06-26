@@ -10,14 +10,15 @@ xquery version "3.1";
 
 
 module namespace api = "http://www.salamanca.school/xquery/api";
-declare namespace output="http://www.w3.org/2010/xslt-xquery-serialization";
-declare namespace exist = "http://exist.sourceforge.net/NS/exist";
-import module namespace util        = "http://exist-db.org/xquery/util";
 
-import module namespace rest = "http://exquery.org/ns/restxq";
-import module namespace http = "http://expath.org/ns/http-client";
+declare namespace exist         = "http://exist.sourceforge.net/NS/exist";
+declare namespace http          = "http://expath.org/ns/http-client";
+declare namespace output        = "http://www.w3.org/2010/xslt-xquery-serialization";
+declare namespace rest          = "http://exquery.org/ns/restxq";
+declare namespace util          = "http://exist-db.org/xquery/util";
 
-import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace console = "http://exist-db.org/xquery/console";
+import module namespace config  = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
 
 
 (: CONFIG VARIABLES :)

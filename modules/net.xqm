@@ -1,31 +1,31 @@
 xquery version "3.1";
 
-
 (: ####++++----
 
     General functions and variables for serving responses to web requests.
 
  ----++++#### :)
 
+module namespace net            = "http://www.salamanca.school/xquery/net";
 
-module namespace net                = "http://www.salamanca.school/xquery/net";
-import module namespace console     = "http://exist-db.org/xquery/console";
-import module namespace functx      = "http://www.functx.com";
-import module namespace request     = "http://exist-db.org/xquery/request";
-import module namespace response    = "http://exist-db.org/xquery/response";
-import module namespace util        = "http://exist-db.org/xquery/util";
+declare namespace tei           = "http://www.tei-c.org/ns/1.0";
+declare namespace sal           = "http://salamanca.adwmainz.de";
 
-import module namespace config      = "http://www.salamanca.school/xquery/config"                 at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace export      = "http://www.salamanca.school/xquery/export"                 at "xmldb:exist:///db/apps/salamanca/modules/export.xqm";
-import module namespace sutil    = "http://www.salamanca.school/xquery/sutil" at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
-import module namespace txt        = "https://www.salamanca.school/factory/works/txt" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
+declare namespace exist         = "http://exist.sourceforge.net/NS/exist";
+declare namespace output        = "http://www.w3.org/2010/xslt-xquery-serialization";
+declare namespace rdf           = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+declare namespace rdfs          = "http://www.w3.org/2000/01/rdf-schema#";
+declare namespace request       = "http://exist-db.org/xquery/request";
+declare namespace response      = "http://exist-db.org/xquery/response";
+declare namespace util          = "http://exist-db.org/xquery/util";
 
-declare       namespace exist       = "http://exist.sourceforge.net/NS/exist";
-declare       namespace output      = "http://www.w3.org/2010/xslt-xquery-serialization";
-declare       namespace rdf         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
-declare       namespace rdfs        = "http://www.w3.org/2000/01/rdf-schema#";
-declare       namespace tei         = "http://www.tei-c.org/ns/1.0";
-declare       namespace sal         = "http://salamanca.adwmainz.de";
+import module namespace console = "http://exist-db.org/xquery/console";
+import module namespace functx  = "http://www.functx.com";
+
+import module namespace config  = "http://www.salamanca.school/xquery/config"      at "config.xqm";
+import module namespace export  = "http://www.salamanca.school/xquery/export"      at "export.xqm";
+import module namespace sutil   = "http://www.salamanca.school/xquery/sutil"       at "sutil.xqm";
+import module namespace txt     = "https://www.salamanca.school/factory/works/txt" at "factory/works/txt.xqm";
 
 declare variable $net:cache-control       := "no";
 

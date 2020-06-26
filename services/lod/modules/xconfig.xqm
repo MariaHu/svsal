@@ -23,7 +23,7 @@ declare variable $xconfig:any23WebserviceURL := "http://any23-vm.apache.org/";
 (: --- SvSal customizations: service locations, debugging level etc. --- :)
 declare variable $xconfig:xtriplesWebserviceURL     := $config:lodServer;
 declare variable $xconfig:any23WebserviceURL        := "http://localhost:8880/any23/any23/";
-declare variable $xconfig:debug                     := "trace"; (: possible values: trace, info, none :)
+declare variable $xconfig:debug                     := "info"; (: possible values: trace, info, none :)
 declare variable $xconfig:logfile                   := "xTriples.log";
 
 (: Configure Servers :)

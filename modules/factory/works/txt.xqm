@@ -8,24 +8,36 @@ xquery version "3.1";
    ----++++#### :)
 
 module namespace txt               = "https://www.salamanca.school/factory/works/txt";
-declare namespace exist            = "http://exist.sourceforge.net/NS/exist";
-declare namespace output           = "http://www.w3.org/2010/xslt-xquery-serialization";
+
 declare namespace tei              = "http://www.tei-c.org/ns/1.0";
 declare namespace sal              = "http://salamanca.adwmainz.de";
-import module namespace util       = "http://exist-db.org/xquery/util";
+
+declare namespace exist            = "http://exist.sourceforge.net/NS/exist";
+declare namespace output           = "http://www.w3.org/2010/xslt-xquery-serialization";
+declare namespace util             = "http://exist-db.org/xquery/util";
+declare namespace xi               = "http://www.w3.org/2001/XInclude";
+
 import module namespace console    = "http://exist-db.org/xquery/console";
+
 import module namespace config     = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace sutil    = "http://www.salamanca.school/xquery/sutil" at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
-(:import module namespace index      = "https://www.salamanca.school/factory/works/index"    at "index.xqm";:)
-(: there are some index functions referred to below, but we needed to implement workarounds that do not depend on index.xqm, so as to avoid
-   circular dependencies between index.xqm and txt.xqm :)
+import module namespace sutil      = "http://www.salamanca.school/xquery/sutil"  at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
+
+declare option exist:timeout "43200000"; (: 12 h :)
+declare option exist:output-size-limit "5000000"; (: max number of nodes in memory :)
+
+(: there are some index functions referred to below, but we needed to implement workarounds that do not depend on index.xqm,
+   so as to avoid circular dependencies between index.xqm and txt.xqm :)
 
 
 (:
 ~ Creates text data as a string for a whole work/volume.
 :)
 declare function txt:makeTXTData($tei as element(tei:TEI), $mode as xs:string) as xs:string? {
-    let $work := util:expand($tei)
+    let $xincludes := $tei//tei:text//xi:include/@href
+    let $work := if (count($xincludes) gt 0) then
+                        util:expand($tei)
+    else
+                        $tei
     return
         string-join(txt:dispatch($work, 'edit'), '')
 };
@@ -132,11 +144,61 @@ declare function txt:dispatch($node as node(), $mode as xs:string) {
 
 (: ####++++ Element functions (ordered alphabetically) ++++#### :)
 
+declare function txt:passthru($nodes as node()*, $mode as xs:string) as item()* {
+    if ($mode = ('snippets-orig', 'snippets-edit')) then
+        for $node in $nodes/node() return 
+            if ((
+                    $node/self::tei:note[@place eq 'margin'] or
+                    $node/self::tei:label[@place eq 'margin']
+                ) and
+                $node/@xml:id
+            ) then
+                (: basic separator for main and marginal nodes in snippet creation :)
+                ()
+            else txt:dispatch($node, $mode)
+    else
+        for $node in $nodes/node() return
+            txt:dispatch($node, $mode)
+};
+
+(: FIXME: In the following, the #anchor does not take account of html partitioning of works. Change this to use semantic section id's. :)
+declare function txt:head($node as element(tei:head), $mode as xs:string) {
+    switch($mode)
+        case 'orig'
+        case 'edit' return
+            (txt:passthru($node, $mode), $config:nl)
+        
+        default return 
+            txt:passthru($node, $mode)
+};
+
+(: FIXME: In the following, work mode functionality has to be added - also paying attention to intervening pagebreak marginal divs :)
+declare function txt:term($node as element(tei:term), $mode as xs:string) {
+    switch($mode)
+        case 'orig' 
+        case 'snippets-orig' return
+            txt:passthru($node, $mode)
+        
+        case 'edit' return
+            if ($node/@key) then
+                (txt:passthru($node, $mode), ' [', string($node/@key), ']')
+            else
+                txt:passthru($node, $mode)
+        
+        case 'snippets-edit' return
+            if ($node/@key) then
+                string($node/@key)
+            else
+                txt:passthru($node, $mode)
+        
+        default return error()
+};
+
+(: TODO - Txt: :)
 
 declare function txt:abbr($node as element(tei:abbr), $mode) {
     txt:origElem($node, $mode)
 };
-
 
 declare function txt:bibl($node as element(tei:bibl), $mode as xs:string) {
     switch($mode)
@@ -160,13 +222,11 @@ declare function txt:bibl($node as element(tei:bibl), $mode as xs:string) {
             txt:passthru($node, $mode)
 };
 
-
 declare function txt:cb($node as element(tei:cb), $mode as xs:string) {
     if (not($node/@break = 'no')) then
         ' '
     else ()
 };
-
 
 declare function txt:corr($node as element(tei:corr), $mode) {
     txt:editElem($node, $mode)
@@ -179,7 +239,6 @@ declare function txt:death($node as element(tei:death), $mode as xs:string) {
         txt:passthru($node, $mode)
     else ()
 };
-
 
 declare function txt:div($node as element(tei:div), $mode as xs:string) {
     switch($mode)
@@ -206,7 +265,6 @@ declare function txt:div($node as element(tei:div), $mode as xs:string) {
             txt:passthru($node, $mode)
 };
 
-
 declare function txt:editElem($node as element(), $mode as xs:string) {
     switch($mode)
         case 'orig' 
@@ -232,34 +290,39 @@ declare function txt:expan($node as element(tei:expan), $mode) {
     txt:editElem($node, $mode)
 };
 
-
 declare function txt:figure($node as element(tei:figure), $mode as xs:string) {
     ()
 };
 
-
 declare function txt:g($node as element(tei:g), $mode as xs:string) {
+    let $charCode  := substring($node/@ref, 2)                       (: substring to remove leading '#' :)
+    let $char := $config:tei-specialchars/tei:char[@xml:id eq $charCode]
+    let $test :=                                                     (: make sure that the char reference is correct :)
+        if (not($char)) then 
+            error(xs:QName('html:g'), 'g/@ref is invalid, the char code does not exist): ', $charCode)
+        else ()
+    return
     switch($mode)
         case 'orig'
         case 'snippets-orig' return
-            let $glyph := $node/ancestor::tei:TEI/tei:teiHeader/tei:encodingDesc/tei:charDecl/tei:char[@xml:id = substring(string($node/@ref), 2)] (: remove leading '#' :)
-            return if ($glyph/tei:mapping[@type = 'precomposed']) then
-                    string($glyph/tei:mapping[@type = 'precomposed'])
-                else if ($glyph/tei:mapping[@type = 'composed']) then
-                    string($glyph/tei:mapping[@type = 'composed'])
-                else if ($glyph/tei:mapping[@type = 'standardized']) then
-                    string($glyph/tei:mapping[@type = 'standardized'])
+(:            let $debug := if ($config:debug = ("trace")) then console:log("[TXT] $char: " || serialize($char) ) else ():)
+(:          let $mapping := $config:tei-specialchars/tei:char[@xml:id eq $charCode]/tei:mapping[@type/string() = ("precomposed", "composed", "standardized")]:)
+            let $mapping := $char/tei:mapping[@type/string() = ("precomposed", "composed", "standardized")] 
+(:            let $debug := if ($config:debug = ("trace")) then console:log("[TXT] mapping: " || serialize($mapping) || ", returning ...") else ():)
+            return
+                if (boolean($mapping)) then
+                    string($mapping[1])
                 else
                     txt:passthru($node, $mode)
         
         case 'edit' 
         case 'snippets-edit' return
-            if (substring($node/@ref,2) = ('char017f', 'char0292')) then
-                let $char := $node/ancestor::tei:TEI/tei:teiHeader/tei:encodingDesc/tei:charDecl/tei:char[@xml:id = substring(string($node/@ref), 2)]
-                return
-                    if ($node/text() = ($char/tei:mapping[@type = 'composed']/text(),$char/tei:mapping[@type = 'precomposed']/text())) then
-                        $char/tei:mapping[@type = 'standardized']/text()
-                    else txt:passthru($node, $mode)
+            if ($charCode = ('char017f', 'char0292')) then
+                if ($node/text() = ($char/tei:mapping[@type = 'composed']/text(),
+                                    $char/tei:mapping[@type = 'precomposed']/text())) then
+                    $char/tei:mapping[@type = 'standardized']/text()
+                else
+                    txt:passthru($node, $mode)
             else if (txt:passthru($node, $mode)) then
                 txt:passthru($node, $mode)
             else
@@ -268,23 +331,9 @@ declare function txt:g($node as element(tei:g), $mode as xs:string) {
         default return error()
 };
 
-
 declare function txt:gap($node as element(tei:gap), $mode as xs:string) {
     ()
 };
-
-
-(: FIXME: In the following, the #anchor does not take account of html partitioning of works. Change this to use semantic section id's. :)
-declare function txt:head($node as element(tei:head), $mode as xs:string) {
-    switch($mode)
-        case 'orig'
-        case 'edit' return
-            (txt:passthru($node, $mode), $config:nl)
-        
-        default return 
-            txt:passthru($node, $mode)
-};
-
 
 declare function txt:item($node as element(tei:item), $mode as xs:string) {
     switch($mode)
@@ -303,11 +352,9 @@ declare function txt:item($node as element(tei:item), $mode as xs:string) {
             txt:passthru($node, $mode)
 };
 
-
 declare function txt:l($node as element(tei:l), $mode as xs:string) {
     (txt:passthru($node, $mode), '&#xA;')
 };
-
 
 declare function txt:label($node as element(tei:label), $mode as xs:string) {
     switch($mode)
@@ -321,7 +368,6 @@ declare function txt:label($node as element(tei:label), $mode as xs:string) {
         default return
             txt:passthru($node, $mode)
 };
-
 
 declare function txt:lb($node as element(tei:lb), $mode as xs:string) {
     switch($mode)
@@ -356,7 +402,6 @@ declare function txt:list($node as element(tei:list), $mode as xs:string) {
             txt:passthru($node, $mode)
 };
 
-
 declare function txt:milestone($node as element(tei:milestone), $mode as xs:string) {
     switch($mode)
         case 'orig' return
@@ -390,7 +435,6 @@ declare function txt:name($node as element(*), $mode as xs:string) {
             txt:passthru($node, $mode)
 };
 
-
 declare function txt:note($node as element(tei:note), $mode as xs:string) {
     switch($mode)
         case 'orig'
@@ -401,7 +445,6 @@ declare function txt:note($node as element(tei:note), $mode as xs:string) {
         default return
             txt:passthru($node, $mode)
 };
-
 
 declare function txt:orgName($node as element(tei:orgName), $mode as xs:string) {
     switch($mode)
@@ -416,10 +459,9 @@ declare function txt:orig($node as element(tei:orig), $mode) {
     txt:origElem($node, $mode)
 };
 
-
 declare function txt:origElem($node as element(), $mode as xs:string) {
     switch($mode)
-        case 'orig' 
+        case 'orig'
         case 'snippets-orig' return
             txt:passthru($node, $mode)
         
@@ -431,7 +473,6 @@ declare function txt:origElem($node as element(), $mode as xs:string) {
             
         default return error()
 };
-
 
 declare function txt:p($node as element(tei:p), $mode as xs:string) {
     switch($mode)
@@ -452,16 +493,6 @@ declare function txt:p($node as element(tei:p), $mode as xs:string) {
         
         default return error()
 };
-
-
-declare function txt:passthru($nodes as node()*, $mode as xs:string) as item()* {
-    for $node in $nodes/node() return 
-        if ($mode = ('snippets-orig', 'snippets-edit') and txt:isMarginalNode($node)) then  (: and index:isMarginalNode($node) :)
-            (: basic separator for main and marginal nodes in snippet creation :)
-            ()
-        else txt:dispatch($node, $mode)
-};
-
 
 declare function txt:pb($node as element(tei:pb), $mode as xs:string) {
     switch($mode)
@@ -484,7 +515,6 @@ declare function txt:pb($node as element(tei:pb), $mode as xs:string) {
         
         default return error()
 };
-
 
 declare function txt:persName($node as element(tei:persName), $mode as xs:string) {
     switch($mode)
@@ -568,7 +598,6 @@ declare function txt:quote($node as element(tei:quote), $mode as xs:string) {
         default return error()
 };
 
-
 declare function txt:reg($node as element(tei:reg), $mode) {
     txt:editElem($node, $mode)
 };
@@ -592,7 +621,6 @@ declare function txt:signed($node as element(tei:signed), $mode as xs:string) {
             txt:passthru($node, $mode)
 };
 
-
 declare function txt:soCalled($node as element(tei:soCalled), $mode as xs:string) {
     if ($mode=("orig", "edit")) then
         ("'", txt:passthru($node, $mode), "'")
@@ -601,34 +629,9 @@ declare function txt:soCalled($node as element(tei:soCalled), $mode as xs:string
     else error()
 };
 
-
 declare function txt:space($node as element(tei:space), $mode as xs:string) {
     if ($node/@dim eq 'horizontal' or @rendition eq '#h-gap') then ' ' else ()
 };
-
-
-(: FIXME: In the following, work mode functionality has to be added - also paying attention to intervening pagebreak marginal divs :)
-declare function txt:term($node as element(tei:term), $mode as xs:string) {
-    switch($mode)
-        case 'orig' 
-        case 'snippets-orig' return
-            txt:passthru($node, $mode)
-        
-        case 'edit' return
-            if ($node/@key) then
-                (txt:passthru($node, $mode), ' [', string($node/@key), ']')
-            else
-                txt:passthru($node, $mode)
-        
-        case 'snippets-edit' return
-            if ($node/@key) then
-                string($node/@key)
-            else
-                txt:passthru($node, $mode)
-        
-        default return error()
-};
-
 
 declare function txt:text($node as element(tei:text), $mode as xs:string) {
     switch($mode)
@@ -640,7 +643,6 @@ declare function txt:text($node as element(tei:text), $mode as xs:string) {
         default return
             txt:passthru($node, $mode)
 };
-
 
 declare function txt:textNode($node as node(), $mode as xs:string) {
     switch($mode)

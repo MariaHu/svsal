@@ -99,6 +99,7 @@
                 <div class="container">
                     <a data-template="gui:logo"/>
                     <div data-template="gui:header"/>
+                    <div data-template="gui:disclaimerDiv"/>         
                 </div>
             </div>
             
@@ -107,6 +108,13 @@
             <script type="text/javascript" src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"/>
             <!-- <script type="text/javascript" src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"/> -->
             <!-- <script async="async" type="text/javascript" src="resources/js/jquery.backTop.min.js"/>-->
+
+            <!-- Make sure content area is visible -->
+            <script type="text/javascript">
+                $(document).ready(function () {
+                    $("#content").css('padding-top', parseInt($('.alert').css("height")) + 2);
+                });
+            </script>
             
             <!-- ==== jQuery Back to top ==== -->
             <a id="backTop"/>

@@ -8,24 +8,27 @@ xquery version "3.1" encoding "UTF-8";
 
 module namespace textsv1 = "http://api.salamanca.school/v1/texts";
 
-declare namespace sal = "http://salamanca.adwmainz.de";
 declare namespace tei     = "http://www.tei-c.org/ns/1.0";
+declare namespace sal     = "http://salamanca.adwmainz.de";
 
-declare namespace output="http://www.w3.org/2010/xslt-xquery-serialization";
-declare namespace exist = "http://exist.sourceforge.net/NS/exist";
-import module namespace rest = "http://exquery.org/ns/restxq";
-import module namespace util = "http://exist-db.org/xquery/util";
-import module namespace http = "http://expath.org/ns/http-client";
-declare       namespace rdf         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
-declare       namespace rdfs        = "http://www.w3.org/2000/01/rdf-schema#";
-import module namespace console     = "http://exist-db.org/xquery/console";
+declare namespace exist   = "http://exist.sourceforge.net/NS/exist";
+declare namespace http    = "http://expath.org/ns/http-client";
+declare namespace map     = "http://www.w3.org/2005/xpath-functions/map";
+declare namespace output  = "http://www.w3.org/2010/xslt-xquery-serialization";
+declare namespace rdf     = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+declare namespace rdfs    = "http://www.w3.org/2000/01/rdf-schema#";
+declare namespace rest    = "http://exquery.org/ns/restxq";
+declare namespace util    = "http://exist-db.org/xquery/util";
+declare namespace xmldb   = "http://exist-db.org/xquery/xmldb";
 
-import module namespace api = "http://www.salamanca.school/xquery/api" at "../api.xqm";
-import module namespace sutil = "http://www.salamanca.school/xquery/sutil" at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
-import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace export = "http://www.salamanca.school/xquery/export" at "xmldb:exist:///db/apps/salamanca/modules/export.xqm";
-(:import module namespace net = "http://www.salamanca.school/xquery/net" at "xmldb:exist:///db/apps/salamanca/modules/net.xqm";:)
-import module namespace txt = "https://www.salamanca.school/factory/works/txt" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
+import module namespace console = "http://exist-db.org/xquery/console";
+
+import module namespace api    = "http://www.salamanca.school/xquery/api"         at "../api.xqm";
+import module namespace config = "http://www.salamanca.school/xquery/config"      at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace export = "http://www.salamanca.school/xquery/export"      at "xmldb:exist:///db/apps/salamanca/modules/export.xqm";
+import module namespace sutil  = "http://www.salamanca.school/xquery/sutil"       at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
+(:import module namespace net  = "http://www.salamanca.school/xquery/net"         at "xmldb:exist:///db/apps/salamanca/modules/net.xqm";:)
+import module namespace txt    = "https://www.salamanca.school/factory/works/txt" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
 
 
 
@@ -42,6 +45,7 @@ declare
 %rest:header-param("Accept", "{$accept}", "text/html")
 %rest:header-param("X-Forwarded-Host", "{$host}", "")
 function textsv1:texts1($format, $lang, $accept, $host) {
+    (: for determining the requested format, the "format" query param has priority over the "Accept" header param: :)
     let $format := if ($format) then $format else api:getFormatFromContentTypes(tokenize($accept, '[, ]+'), 'text/html')
     return
         switch($format)
@@ -167,7 +171,7 @@ declare %private function textsv1:TXTdeliverDoc($rid as xs:string, $mode as xs:s
                         else
                             api:error404NotYetAvailable()
                 else (: $resource('request_type') eq 'passage' :)
-                    let $node := sutil:getTeiNodeFromCitetrail($resource('work_id'), $resource('passage'))
+                    let $node := sutil:getTeiNodeFromCiteID($resource('work_id'), $resource('passage'))
                     return
                         if ($node) then
                             api:deliverTXT(
@@ -227,7 +231,7 @@ declare %private function textsv1:HTMLdeliverDoc($rid as xs:string, $mode as xs:
                     return
                         try {
                             string(
-                                doc($config:rdf-works-root || '/' || $resource('work_id') || '.rdf')//rdf:Description[lower-case(@rdf:about/string()) eq lower-case($rdfAbout)]/rdfs:seeAlso[@rdf:resource[contains(., ".html")]][1]/@rdf:resource
+                                doc($config:rdf-works-root || '/' || $resource('work_id') || '.rdf')//rdf:Description[lower-case(@rdf:about) eq lower-case($rdfAbout)]/rdfs:seeAlso[@rdf:resource[contains(., ".html")]][1]/@rdf:resource
                             )
                             } 
                         catch err:FORG0006 {
@@ -375,20 +379,20 @@ declare %private function textsv1:IIIFredirect($rid as xs:string, $host as xs:st
 :)
 declare function textsv1:validateResourceId($rid as xs:string?) as map(*) {
     (: the returned map has negative or no values by default;
-       while validating the resource more and more deeply (see below), we update the map gradually :)
+       while validating the resource more and more deeply (see below), we fill in the map gradually :)
     let $valMap := map {
-        'valid': false(), (: states if resource is valid/available, i.e. if it refers to a (valid passage within a) text that is published :)
-        'request_type': (), (: if the resource is valid, states whether a "full" text or a "passage" was requested. 
-                              Note that volumes count as "full" text in this case, not as "passage". :)
-        'work_id': (), (: the id of the work (5-place, without volume suffix) :)
-        'rid_main': (), (: the "main" part of the resource id, before any colon or dot. Case is normalized :)
-        'tei_id': (), (: the id of the TEI dataset for the work/volume, as found in $config:tei-works-root (without ".xml") :)
-        'tei_status': -1, (: status of the work: see sutil:WRKvalidateId() :)
-        'passage': (), (: the id of the passage :)
-        'passage_status': 0, (: the status of the passage: 1 if passage is available, 0 if not :)
+        'valid': false(),      (: states if resource is valid/available, i.e. if it refers to a (valid passage within a) text that is published :)
+        'request_type': (),    (: if the resource is valid, states whether a "full" text or a "passage" was requested. 
+                                  Note that volumes count as "full" text in this case, not as "passage". :)
+        'work_id': (),         (: the id of the work (5-place, without volume suffix) :)
+        'rid_main': (),        (: the "main" part of the resource id, before any colon or dot. Case is normalized :)
+        'tei_id': (),          (: the id of the TEI dataset for the work/volume, as found in $config:tei-works-root (without ".xml") :)
+        'tei_status': -1,      (: status of the work: see sutil:WRKvalidateId() :)
+        'passage': (),         (: the id of the passage :)
+        'passage_status': 0,   (: the status of the passage: 1 if passage is available, 0 if not :)
         'wellformed': false(), (: states if resource id is syntactically well-formed :)
-        'legacy_mode': (), (: legacy resource ids may contain a mode parameter such as "W0004.orig", which may be relevant for HTML/TXT delivery :)
-        'rid': $rid (: the originally requested resource id :)
+        'legacy_mode': (),     (: legacy resource ids may contain a mode parameter such as "W0004.orig", which may be relevant for HTML/TXT delivery :)
+        'rid': $rid            (: the originally requested resource id :)
     }
     
     (: first, we parse the resource id and determine the main component (before ":" or "."), 
@@ -414,7 +418,7 @@ declare function textsv1:validateResourceId($rid as xs:string?) as map(*) {
             (: we put work and tei_id already into the map (like passage above), regardless of whether they are valid: :)
             let $valMap := map:put($valMap, 'work_id', substring($valMap('rid_main'), 1, 5))
             let $passageIsFullVolume := matches(lower-case($valMap('passage')), '^vol\d{1,2}$')
-            let $teiId := 
+            let $teiId :=
                 if ($passageIsFullVolume) then
                     $valMap('work_id') || '_Vol' || format-number(xs:integer(replace($valMap('passage'), '^vol(\d{1,2})$', '$1')), '00')
                 else $valMap('rid_main')
@@ -426,7 +430,7 @@ declare function textsv1:validateResourceId($rid as xs:string?) as map(*) {
                 (: the work/volume is available - but what about the (potential) passage? :)
                     if ($valMap('passage') and not(matches(lower-case($valMap('passage')), '^vol\d{1,2}$'))) then
                         (: (passages that refer to mere volumes have already been treated above) :)
-                        if (doc($config:index-root || '/' || $valMap('work_id') || '_nodeIndex.xml')//sal:citetrail[./text() eq $valMap('passage')]) then
+                        if (doc($config:index-root || '/' || $valMap('work_id') || '_nodeIndex.xml')//sal:node[@citeID eq $valMap('passage')]) then
                             let $valMap := map:put($valMap, 'passage_status', 1)
                             let $valMap := map:put($valMap, 'valid', true())
                             return map:put($valMap, 'request_type', 'passage')
@@ -440,11 +444,9 @@ declare function textsv1:validateResourceId($rid as xs:string?) as map(*) {
             $valMap
     
     let $debug := 
-        if ($config:debug = ('trace', 'info')) then 
+        if ($config:debug = ('trace')) then 
             util:log('warn', '[TEXTSAPI] validation results: ' || serialize($valMap, $api:jsonOutputParams))
         else ()
         
     return $valMap
 };
-
-

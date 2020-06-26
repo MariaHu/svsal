@@ -55,11 +55,12 @@
 
     </head>
     <body id="body">
-        <div class="navbar navbar-default navbar-fixed-top" role="navigation">
+        <div id="main-menu" class="navbar navbar-default navbar-fixed-top" role="navigation">
             <!-- top row with navigation buttons -->
             <div class="container">
                 <a data-template="gui:logo"/> <!-- SvSal-claim, Toggle Boxes, extended menu) -->
                 <div data-template="gui:header"/> <!-- General Menu (Works, Dictionary, Proj. description etc.) -->
+                <div data-template="gui:disclaimerDiv"/>         
             </div>
         </div>
         <!-- Work-UI (Toggle Boxes, extended menu) -->
@@ -150,6 +151,7 @@
         <!-- ==== Show GUI-Nav when scolling to top ==== -->
         <script>
             $(document).ready(function () {
+                $(".navbar-white").css('padding-top', parseInt($('#main-menu').css("height"))-2);
                 $(".navbar-white").autoHidingNavbar().autoHidingNavbar('setShowOnBottom', false).autoHidingNavbar('setAnimationDuration', 400);
             });
         </script>

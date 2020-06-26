@@ -1,4 +1,4 @@
-xquery version "3.0";
+xquery version "3.1";
 
 (: ####++++---- 
 
@@ -8,29 +8,38 @@ xquery version "3.0";
  ----++++#### :)
  
 module namespace admin              = "http://www.salamanca.school/xquery/admin";
-declare namespace exist             = "http://exist.sourceforge.net/NS/exist";
+
 declare namespace tei               = "http://www.tei-c.org/ns/1.0";
-declare namespace xi                = "http://www.w3.org/2001/XInclude";
 declare namespace sal               = "http://salamanca.adwmainz.de";
+
+declare namespace compression       = "http://exist-db.org/xquery/compression";
+declare namespace exist             = "http://exist.sourceforge.net/NS/exist";
+declare namespace file              = "http://exist-db.org/xquery/file";
 declare namespace i18n              = 'http://exist-db.org/xquery/i18n';
+declare namespace output            = "http://www.w3.org/2010/xslt-xquery-serialization";
+declare namespace request           = "http://exist-db.org/xquery/request";
+declare namespace sm                = "http://exist-db.org/xquery/securitymanager";
+declare namespace templates         = "http://exist-db.org/xquery/templates";
+declare namespace util              = "http://exist-db.org/xquery/util";
+declare namespace xi                = "http://www.w3.org/2001/XInclude";
+declare namespace xmldb             = "http://exist-db.org/xquery/xmldb";
+
 import module namespace functx      = "http://www.functx.com";
 import module namespace console     = "http://exist-db.org/xquery/console";
-import module namespace templates   = "http://exist-db.org/xquery/templates";
-import module namespace util        = "http://exist-db.org/xquery/util";
-import module namespace xmldb       = "http://exist-db.org/xquery/xmldb";
-import module namespace app         = "http://www.salamanca.school/xquery/app"                    at "xmldb:exist:///db/apps/salamanca/modules/app.xqm";
-import module namespace config      = "http://www.salamanca.school/xquery/config"                 at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace render-app  = "http://www.salamanca.school/xquery/render-app"         at "xmldb:exist:///db/apps/salamanca/modules/render-app.xqm";
-import module namespace sphinx      = "http://www.salamanca.school/xquery/sphinx"                 at "xmldb:exist:///db/apps/salamanca/modules/sphinx.xqm";
-import module namespace sutil       = "http://www.salamanca.school/xquery/sutil" at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
-import module namespace stats       = "https://www.salamanca.school/factory/works/stats" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/stats.xqm";
-import module namespace index       = "https://www.salamanca.school/factory/works/index" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/index.xqm";
-import module namespace html        = "https://www.salamanca.school/factory/works/html" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/html.xqm";
-import module namespace txt         = "https://www.salamanca.school/factory/works/txt" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
-import module namespace iiif        = "https://www.salamanca.school/factory/works/iiif" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/iiif.xqm";
-declare namespace output            = "http://www.w3.org/2010/xslt-xquery-serialization";
 
-declare option exist:timeout "25000000"; (: ~7 h :)
+import module namespace app         = "http://www.salamanca.school/xquery/app"           at "app.xqm";
+import module namespace config      = "http://www.salamanca.school/xquery/config"        at "config.xqm";
+import module namespace render-app  = "http://www.salamanca.school/xquery/render-app"    at "render-app.xqm";
+import module namespace sphinx      = "http://www.salamanca.school/xquery/sphinx"        at "sphinx.xqm";
+import module namespace sutil       = "http://www.salamanca.school/xquery/sutil"         at "sutil.xqm";
+import module namespace stats       = "https://www.salamanca.school/factory/works/stats" at "factory/works/stats.xqm";
+import module namespace index       = "https://www.salamanca.school/factory/works/index" at "factory/works/index.xqm";
+import module namespace html        = "https://www.salamanca.school/factory/works/html"  at "factory/works/html.xqm";
+import module namespace txt         = "https://www.salamanca.school/factory/works/txt"   at "factory/works/txt.xqm";
+import module namespace iiif        = "https://www.salamanca.school/factory/works/iiif"  at "factory/works/iiif.xqm";
+
+declare option exist:timeout "43000000"; (: in miliseconds, 25.000.000 ~ 7h, 43.000.000 ~ 12h :)
+declare option exist:output-size-limit "5000000"; (: max number of nodes in memory :)
 
 (:
 ~ TODO: 
@@ -180,7 +189,7 @@ declare function admin:needsHTMLString($node as node(), $model as map(*)) {
 };
 
 declare function admin:workString($node as node(), $model as map(*), $lang as xs:string?) {
-(:    let $debug := console:log(string($model('currentWork')/@xml:id)):)
+(:    let $debug := console:log("Rendering", string($model('currentWork')/@xml:id)):)
     let $currentWorkId  := $model('currentWork')?('wid')
     let $author := <span>{$model('currentWork')?('author')}</span>
     let $titleShort := $model('currentWork')?('titleShort')
@@ -188,7 +197,7 @@ declare function admin:workString($node as node(), $model as map(*), $lang as xs
         <td>
             <a href="{$config:webserver}/en/work.html?wid={$currentWorkId}">{$currentWorkId}: {$author} - {$titleShort}</a>
             <br/>
-            <a style="font-weight:bold;" href="{$config:webserver}/webdata-admin.xql?rid={$currentWorkId}&amp;format=all">Create EVERYTHING except IIIF (safest option)</a>
+            <a style="font-weight:bold;" href="{$config:webserver}/webdata-admin.xql?rid={$currentWorkId}&amp;format=all">Create EVERYTHING except IIIF and RDF (safest option)</a>
         </td>
 };
 
@@ -566,14 +575,13 @@ declare %templates:wrap function admin:renderAuthorLemma($node as node(), $model
 };
 
 (:
-~ Creates HTML fragments and TXT datasets for works and stores them in the database, also updating
-~ the corpus datasets (TEI and TXT zips) with the respective work's data.
+~ Creates HTML fragments and TXT datasets for works and stores them in the database.
 :)
 declare %templates:wrap function admin:renderWork($workId as xs:string*) as element(div) {
     let $start-time := util:system-time()
     let $wid := if ($workId) then $workId else request:get-parameter('wid', '*')
     
-    let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Rendering " || $wid || ".") else ()
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Rendering " || $wid || " (HTML and TXT).") else ()
     
     (: define the works to be fragmented: :)
     let $todo := 
@@ -620,8 +628,7 @@ declare %templates:wrap function admin:renderWork($workId as xs:string*) as elem
                                         prev xml:id={$fragment('prev')} <br/>
                                         next xml:id={$fragment('next')} <br/>
                                     </code>
-                                    {$fragment('html')}
-                                </div>
+                                    </div>
                             </div>
                         </div>
         
@@ -630,10 +637,10 @@ declare %templates:wrap function admin:renderWork($workId as xs:string*) as elem
             let $txt-start-time := util:system-time()
             let $plainTextEdit := txt:makeTXTData($work-raw, 'edit')
             let $txtEditSaveStatus := admin:saveFile($workId, $workId || "_edit.txt", $plainTextEdit, "txt")
-            let $debug := if ($config:debug = ("trace", "info")) then console:log("Plain text (edit) file created and stored.") else ()
+            let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Plain text (edit) file created and stored.") else ()
             let $plainTextOrig := txt:makeTXTData($work-raw, 'orig')
             let $txtOrigSaveStatus := admin:saveFile($workId, $workId || "_orig.txt", $plainTextOrig, "txt")
-            let $debug := if ($config:debug = ("trace", "info")) then console:log("Plain text (orig) file created and stored.") else ()
+            let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Plain text (orig) file created and stored.") else ()
             let $txt-end-time := ((util:system-time() - $txt-start-time) div xs:dayTimeDuration('PT1S'))
             
             (: HTML & TXT Reporting :)
@@ -658,17 +665,15 @@ declare %templates:wrap function admin:renderWork($workId as xs:string*) as elem
                      <p>Computing time (TXT: orig and edit): {$txt-end-time} seconds.</p>
                      {if ($config:debug = 'trace') then $saveFragments else ()}
                </div>
-    
-    
-    (: (3) UPDATE TEI & TXT CORPORA :)
-    
-    (: (re-)create txt and xml corpus zips :)
+
+    (: (3) UPDATE TEI & TXT CORPORA :/)
+    (/: (re-)create txt and xml corpus zips :/)
     let $corpus-start-time := util:system-time()
-    let $debug := if ($config:debug = ("trace", "info")) then console:log("Corpus packages created and stored.") else ()
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Create and store corpus packages ...") else ()
     let $createTeiCorpus := admin:createTeiCorpus(encode-for-uri($workId))
     let $createTxtCorpus := admin:createTxtCorpus(encode-for-uri($workId))
     let $corpus-end-time := ((util:system-time() - $corpus-start-time) div xs:dayTimeDuration('PT1S'))
-    
+    :)
     
     let $runtime-ms-raw       := ((util:system-time() - $start-time) div xs:dayTimeDuration('PT1S'))  * 1000 
     let $runtime-ms :=
@@ -677,10 +682,7 @@ declare %templates:wrap function admin:renderWork($workId as xs:string*) as elem
         else format-number($runtime-ms-raw div (1000 * 60 * 60), "#.##") || " Std."
     
     
-    (: make sure that fragments are to be found by reindexing :)
-    (:let $index-start-time := util:system-time()
-    let $reindex          := if ($config:instanceMode ne "testing") then xmldb:reindex($config:webdata-root) else ()
-    let $index-end-time := ((util:system-time() - $index-start-time) div xs:dayTimeDuration('PT1S')):)
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Done rendering HTML and TXT for " || $wid || ".") else ()
     let $debug := util:log('warn', '[ADMIN] Created HTML for work ' || $wid || ' in ' || $runtime-ms || ' ms.')
     return 
         <div>
@@ -688,8 +690,7 @@ declare %templates:wrap function admin:renderWork($workId as xs:string*) as elem
             <p>To render: {count($todo)} work(s); total computing time:
                 {$runtime-ms}
             </p>
-            <p>Created TEI and TXT corpora in {$corpus-end-time} seconds.</p>
-            <!--<p>/db/apps/salamanca/data reindiziert in {$index-end-time} Sekunden.</p>-->
+            <p>Created TEI and TXT corpora in {$runtime-ms} seconds.</p>
             <hr/>
             {$createData}
         </div>
@@ -755,9 +756,9 @@ declare function admin:createTxtCorpus($processId as xs:string) {
                     if (util:binary-doc-available($config:txt-root || '/' || $wid || '/' || $wid || '_orig.txt')) then ()
                     else 
                         let $tei := util:expand(doc($config:tei-works-root || '/' || $wid || '.xml')/tei:TEI)
-                        let $debug := if ($config:debug = ("trace", "info")) then console:log('[ADMIN] Rendering txt version of work: ' || $config:tei-works-root || '/' || $wid || '.xml') else ()
+                        let $debug := if ($config:debug = ("trace", "info")) then console:log("Rendering", '[ADMIN] Rendering txt version of work: ' || $config:tei-works-root || '/' || $wid || '.xml') else ()
                         let $origTxt := string-join(txt:dispatch($tei, 'orig'), '')
-                        let $debug := if ($config:debug = ("trace", "info")) then console:log('[ADMIN] Rendered ' || $wid || ', string length: ' || string-length($origTxt)) else ()
+                        let $debug := if ($config:debug = ("trace", "info")) then console:log("Rendering", '[ADMIN] Rendered ' || $wid || ', string length: ' || string-length($origTxt)) else ()
                         return admin:saveFile($wid, $wid || "_orig.txt", $origTxt, "txt")
                 let $storeOrig := xmldb:store-as-binary($tempCollection, $wid || '_orig.txt', util:binary-doc($config:txt-root || '/' || $wid || '/' || $wid || '_orig.txt'))
                 let $renderEdit := 
@@ -791,11 +792,12 @@ declare function admin:createTxtCorpus($processId as xs:string) {
 };
 
 (: Generate fragments for sphinx' indexer to grok :)
-(: NOTE: the largest part of the snippets creation takes place here, not in factory/*, since it applies to different
- types of texts (works, working papers) at once :)
+(: NOTE: the largest part of the snippets creation takes place here, not in factory/*,
+         since it applies to different types of texts (works, working papers) at once :)
 declare function admin:sphinx-out($wid as xs:string*, $mode as xs:string?) {
 
     let $start-time := util:system-time()
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Rendering sphinx snippets for " || $wid || ".") else ()
 
     (: Which works are to be indexed? :)
     let $todo := 
@@ -830,7 +832,7 @@ declare function admin:sphinx-out($wid as xs:string*, $mode as xs:string?) {
                 else if (starts-with($work_id, 'L')) then 'lemma'
                 else ()
             
-            (: NOTE: the following extraction of information from TEI is supposed to work for works AND working papers, atm.
+            (: NOTE: The following extraction of information from TEI is supposed to work for works AND working papers, atm.
                Perhaps it would be better to separate logic for different types of texts in the future (TODO) :)
             let $work_type         := xs:string($work/tei:text/@type)
             let $teiHeader         := $work/tei:teiHeader
@@ -856,8 +858,7 @@ declare function admin:sphinx-out($wid as xs:string*, $mode as xs:string?) {
                 else ()
             let $hit_type := local-name($hit)
             let $hit_id := xs:string($hit/@xml:id)
-            let $hit_citetrail := if ($nodeType eq 'work') then sutil:getNodetrail($work_id, $hit, 'citetrail') else ()
-(:                doc($config:index-root || '/' || $work_id || '_nodeIndex.xml')//sal:node[@n = $hit_id]/sal:citetrail:)
+            let $hit_citeID := if ($nodeType eq 'work') then sutil:getNodetrail($work_id, $hit, 'citeID') else ()
             let $hit_language := xs:string($hit/ancestor-or-self::tei:*[@xml:lang][1]/@xml:lang)
             let $hit_fragment := 
                 if ($hit_id and xmldb:collection-available($config:html-root || '/' || $work_id)) then
@@ -874,7 +875,7 @@ declare function admin:sphinx-out($wid as xs:string*, $mode as xs:string?) {
                     "#No fragment discoverable!"
             let $hit_url :=      
                 if ($hit_fragment and $nodeType eq 'work') then
-                    $config:idserver || "/texts/"   || $work_id || ':' || $hit_citetrail
+                    $config:idserver || "/texts/"   || $work_id || ':' || $hit_citeID
                 else if ($nodeType eq 'author') then
                     $config:idserver || "/authors/" || $work_id
                 else if ($nodeType eq 'lemma') then
@@ -919,12 +920,6 @@ declare function admin:sphinx-out($wid as xs:string*, $mode as xs:string?) {
                             node xml:id: &quot;<sphinx_hit_id>{$hit_id}</sphinx_hit_id>&quot;
                         </h4>
                         <p>
-                            <em><sphinx_description_orig>{$hit_content_orig}</sphinx_description_orig></em>
-                        </p>
-                        <p>
-                            <em><sphinx_description_edit>{$hit_content_edit}</sphinx_description_edit></em>
-                        </p>
-                        <p>
                             find it in fragment number {$hit_fragment_number} here: <a href="{$hit_path}"><sphinx_html_path>{$hit_path}</sphinx_html_path></a><br/>
                             or here: <a href="{$hit_url}"><sphinx_fragment_path>{$hit_url}</sphinx_fragment_path></a>
                         </p>
@@ -964,6 +959,7 @@ declare function admin:sphinx-out($wid as xs:string*, $mode as xs:string?) {
 
 (: Now return statistics, schema and the whole document-set :)
     let $runtime-ms := ((util:system-time() - $start-time) div xs:dayTimeDuration('PT1S')) * 1000
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Done rendering sphinx snippets for " || $wid || ".") else ()
     return 
         if ($mode = "html") then
             <div>
@@ -996,31 +992,34 @@ declare function admin:sphinx-out($wid as xs:string*, $mode as xs:string?) {
 };
 
 declare function admin:createNodeIndex($wid as xs:string*) {
-(:    let $debug := if ($config:debug = ("trace", "info")) then util:log("warn", "[ADMIN] Creating node index for " || $wid || ".") else ():)
+    let $debug :=   if ($config:debug = ("trace", "info")) then
+                        let $d := console:log("[ADMIN] Creating node index for " || $wid || ".")
+                        return util:log("warn", "[ADMIN] Creating node index for " || $wid || ".")
+                    else ()
     let $start-time := util:system-time()
     
     (: define the works to be indexed: :)
     let $teiRoots := 
         if ($wid = '*') then
-            collection($config:tei-works-root)//tei:TEI[.//tei:text[@type = ("work_multivolume", "work_monograph")]]
+            collection($config:tei-works-root)//tei:TEI[./tei:text[@type = ("work_multivolume", "work_monograph")]]
         else
             collection($config:tei-works-root)//tei:TEI[@xml:id = distinct-values($wid)]
 
     (: for each requested work, create an individual index :)
     let $indexResults :=
         for $tei in $teiRoots return
-            let $start-time-a := util:system-time()
-            let $wid := string($tei/@xml:id)
-            let $indexing := index:makeNodeIndex($tei)
-            let $index := $indexing('index')
-            let $fragmentationDepth := $indexing('fragmentation_depth')
-            let $missed-elements := $indexing('missed_elements')
-            let $unidentified-elements := $indexing('unidentified_elements')
+            let $start-time-a   := util:system-time()
+            let $wid            := xs:string($tei/@xml:id)
+            let $indexing       := index:makeNodeIndex($tei)
+            let $index                  := $indexing('index')
+            let $fragmentationDepth     := $indexing('fragmentation_depth')
+            let $missed-elements        := $indexing('missed_elements')
+            let $unidentified-elements  := $indexing('unidentified_elements')
              
             (: save final index file :)
-            let $debug := if ($config:debug = ("trace")) then console:log("Saving index file ...") else ()
+            let $debug := if ($config:debug = ("trace")) then console:log("[ADMIN] Saving index file ...") else ()
             let $indexSaveStatus := admin:saveFile($wid, $wid || "_nodeIndex.xml", $index, "index")
-            let $debug := if ($config:debug = ("trace")) then console:log("Node index of "  || $wid || " successfully created.") else ()
+            let $debug := if ($config:debug = ("trace")) then console:log("[ADMIN] Node index of "  || $wid || " successfully created.") else ()
                 
             (: Reporting... :)
             
@@ -1062,6 +1061,7 @@ declare function admin:createNodeIndex($wid as xs:string*) {
 };
 
 declare function admin:createRDF($rid as xs:string) {
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Rendering RDF for " || $rid || ".") else ()
     let $rid :=  
         if (starts-with($rid, "authors/")) then
             substring-after($rid, "authors/")
@@ -1074,12 +1074,13 @@ declare function admin:createRDF($rid as xs:string) {
         || $config:webserver || '/xtriples/createConfig.xql?resourceId=' || $rid
     let $debug := 
         if ($config:debug eq 'trace') then
-            util:log("warn", "Requesting " || $xtriplesUrl || ' ...')
+            let $d := console:log("[Admin] Requesting " || $xtriplesUrl || " ...")
+            return util:log("warn", "Requesting " || $xtriplesUrl || ' ...')
         else ()
     let $rdf := 
         (: if this throws an "XML Parsing Error: no root element found", this might be due to the any23 service not being available
          - check it via "curl -X POST http://localhost:8880/any23/any23/rdfxml", for example:)
-        doc($xtriplesUrl) 
+        doc($xtriplesUrl)
     let $runtime-ms := ((util:system-time() - $start-time) div xs:dayTimeDuration('PT1S'))  * 1000
     let $runtimeString := 
         if ($runtime-ms < (1000 * 60)) then format-number($runtime-ms div 1000, "#.##") || " Sek."
@@ -1087,6 +1088,7 @@ declare function admin:createRDF($rid as xs:string) {
         else format-number($runtime-ms div (1000 * 60 * 60), "#.##") || " Std."
     let $log  := util:log('warn', 'Extracted RDF for ' || $rid || ' in ' || $runtimeString)
     let $save := admin:saveFile($rid, $rid || '.rdf', $rdf, 'rdf')
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Done rendering RDF for " || $rid || ".") else ()
     return 
         <div>
             <h2>RDF Extraction</h2>
