@@ -1393,6 +1393,8 @@ declare function app:cited ($node as node(), $model as map(*), $lang as xs:strin
                 let $author := sutil:formatName($entity//tei:persName[1])
                 let $title          :=  if ($entity//tei:title/@key) then
                                             ($entity//tei:title/@key)[1]
+                                        else if (tokenize($entity/@sortKey, "_-_")[2]) then
+                                            replace(tokenize($entity/@sortKey, "_-_")[2], "_", " ")
                                         else if (string($entity//tei:title[1]) ne "") then
                                             string($entity//tei:title[1])
                                         else ()
