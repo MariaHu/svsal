@@ -1081,7 +1081,7 @@ declare
     function app:watermark($node as node(), $model as map(*), $wid as xs:string?, $lang as xs:string?) {
     let $watermark :=   if (($model('currentAuthor')//tei:revisionDesc/@status |
                              $model('currentLemma')//tei:revisionDesc/@status  |
-                             doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")/tei:TEI//tei:revisionDesc/@status)[1]
+                             doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")/tei:TEI//tei:revisionDesc/@status)[1]/string()
                                                         = ('a_raw',
                                                            'b_cleared',
                                                            'c_hyph_proposed',
@@ -1379,213 +1379,81 @@ declare %templates:wrap
         return $works
 };
 
-(:declare %public function app:AUTentry($node as node(), $model as map(*), $aid) {
-    app:AUTsummary(doc($config:tei-authors-root || "/" || sutil:normalizeId($aid) || ".xml")//tei:text)
-};
-
-declare function app:AUTsummary($node as node()) as item()* {
-    typeswitch($node)
-        case element(tei:teiHeader) return ()
-        case text() return $node
-        case comment() return $node
-        case element(tei:bibl) return 
-             let $getGetId :=  $node/@sortKey
-                return 
-                    if ($getGetId) then
-                        <span class="{('work hi_'||$getGetId)}">
-                        {if ($node/tei:title/@ref) then
-                            <a target="blank" href="{$node/tei:title/@ref}">{($node/text())}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                        else
-                            <i>{($node/text())}</i>}
-                        </span>    
-                        else()
-        case element(tei:birth) return 
-            <span>
-<!--
-                <a class="anchor" name="{$node/ancestor::tei:div[1]/@xml:id}"></a>
-                <h3>
-                    <a class="anchorjs-link" href="{session:encode-url(xs:anyURI('author.html?aid=' || $node/ancestor::tei:TEI/@xml:id||'#'||$node/ancestor::tei:div[1]/@xml:id||'LifeData'))}">
-                        <span class="anchorjs-icon"></span>
-                    </a><i18n:text key="overview">Lebensdaten</i18n:text>
-                </h3>
-                <p class="autText"><!-/-<i class="fa fa-birthday-cake"></i>-/->*&#xA0;
-                    {app:placeNames($node), ': '||$node/tei:date[1]}
-                </p>
--->
-                *&#xA0;{app:placeNames($node) || ': ' || $node/tei:date[1]}
-            </span>
-        case element(tei:death) return 
-            <span>
-<!--
-             <p class="autText"><!-/-<i class="fa fa-plus"></i>-/->†&#xA0;
-                    {app:placeNames($node), ': '||$node/tei:date[1]}
-            </p>
--->
-                †&#xA0;{app:placeNames($node) || ': '||$node/tei:date[1]}
-            </span>
-        case element(tei:head) return if ($node/@xml:id='overview') then () else 
-            <span>
-            <a class="anchor" name="{$node/parent::tei:div[1]/@xml:id}"></a>
-                <h3>
-                    <a class="anchorjs-link" href="{session:encode-url(xs:anyURI('author.html?aid=' || $node/ancestor::tei:TEI/@xml:id||'#'||$node/parent::tei:div[1]/@xml:id))}">
-                        <span class="anchorjs-icon"></span>
-                    </a>
-                {$node}</h3>
-            </span>
-        case element(tei:list) return
-            if ($node/tei:head) then
-                <div>
-                <h4>{local:passthru($node/tei:head)}</h4>
-                <ul class="list-group" style="list-style-type: disc;">
-                    {for $child in $node/tei:item
-                    return
-                    <li class="list-group-item">
-                        {local:passthru($child)}
-                    </li>}
-                </ul>
-                </div>    
-            else
-                <ul class="list-group" style="list-style-type: disc;">
-                    {for $child in $node/tei:item
-                    return
-                    <li class="list-group-item">
-                        {local:passthru($child)}
-                    </li>}
-                </ul>    
-        case element(tei:orgName) return 
-            let $lang := request:get-attribute('lang')
-            let $getCerlId      :=  if (starts-with($node/@ref, 'cerl:')) then replace($node/@ref/string(), "(cerl):(\d{11})*", "$2") else ()
-            let $CerlHighlight  :=  if (starts-with($node/@ref, 'cerl:')) then replace($node/@ref/string(), "(cerl):(\d{11})*", "$1$2") else ()
-                return 
-                    if (starts-with($node/@ref, 'cerl:')) then 
-                         <span class="{('persName hi_'||$CerlHighlight)}">
-                            <a target="_blank" href="{('http://thesaurus.cerl.org/cgi-bin/record.pl?rid='||$getCerlId)}">{$node||$config:nbsp}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                         </span>
-                    else
-                        <span>{$node/text()}</span>
-        case element(tei:p) return
-            <p class="autText">{local:passthru($node)}</p>
-        case element(tei:persName) return 
-            let $lang := request:get-attribute('lang')
-            let $getAutId       :=  if (starts-with($node/@ref, 'author:')) then substring($node/@ref/string(),8,5) else ()
-            let $getGndId       :=  if (starts-with($node/@ref, 'gnd:'))  then replace($node/@ref/string(), "(gnd):(\d{9})*", "$1/$2") else ()
-            let $GndHighlight   :=  if (starts-with($node/@ref, 'gnd:'))  then replace($node/@ref/string(), "(gnd):(\d{9})*", "$1$2") else ()
-            let $getCerlId      :=  if (starts-with($node/@ref, 'cerl:')) then replace($node/@ref/string(), "(cerl):(\d{11})*", "$2") else ()
-            let $CerlHighlight  :=  if (starts-with($node/@ref, 'cerl:')) then replace($node/@ref/string(), "(cerl):(\d{11})*", "$1$2") else ()
-                return 
-                    if ($node/tei:addName) then 
-                        <span>
-                            <h3>
-                               <a class="anchorjs-link" href="{session:encode-url(xs:anyURI('author.html?aid=' || $node/ancestor::tei:TEI/@xml:id||'#'||$node/ancestor::tei:div[1]/@xml:id||'AddNames'))}">
-                                   <span class="anchorjs-icon"></span>
-                               </a><i18n:text key="addName">Aliasnamen</i18n:text>
-                           </h3>
-                           <p class="autText">{local:passthru($node/tei:addName)}</p>
-                        </span>
-                    else if (starts-with($node/@ref, 'author:')) then
-                         <span class="{('persName hi_'||'author'||$getAutId)}">
-                             <a href="{session:encode-url(xs:anyURI('author.html?aid=' || $getAutId))}">{($node/text())}</a>
-                         </span> 
-                    else if (starts-with($node/@ref, 'cerl:')) then 
-                         <span class="{('persName hi_'||$CerlHighlight)}">
-                            <a target="_blank" href="{('http://thesaurus.cerl.org/cgi-bin/record.pl?rid='||$getCerlId)}">{($node/text())||$config:nbsp}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                         </span>
-                    else if (starts-with($node/@ref, 'gnd:')) then 
-                         <span class="{('persName hi_'||$GndHighlight)}">
-                            <a target="_blank" href="{('http://d-nb.info/'||$getGndId)}">{($node/text())||$config:nbsp}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                         </span>
-                    else
-                        <span>{$node/text()}</span>
-        case element(tei:person) return
-            <ul style="list-style-type: disc;">
-                {for $child in $node/* return
-                    <li>{local:passthru($child)}</li>}
-            </ul>
-        case element(tei:placeName) return
-            let $getGetId :=  substring($node/@ref/string(),7,7)
-            let $replaceGet :=  'http://www.getty.edu/vow/TGNFullDisplay?find=&amp;place=&amp;nation=&amp;english=Y&amp;subjectid='||$getGetId
-                return 
-                    if (starts-with($node/@ref, 'getty:')) then
-                        <span class="{('place hi_'||'getty'||$getGetId)}">
-                            <a target="blank" href="{$replaceGet}">{($node/text())||$config:nbsp}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                        </span>    
-                    else
-                        <span class="place">{($node/text())}</span>
-        case element(tei:quote) return
-            <span>»{local:passthru($node)}«</span>
-        case element(tei:state) return
-            <span>
-<!--
-            {if (not($node/preceding::tei:state)) then
-                <span>
-                    <a class="anchor" name="{$node/ancestor::tei:div[1]/@xml:id||'Degree'}"></a>
-                    <h3>
-                       <a class="anchorjs-link" href="{session:encode-url(xs:anyURI('author.html?aid=' || $node/ancestor::tei:TEI/@xml:id||'#'||$node/ancestor::tei:div[1]/@xml:id||'Degree'))}">
-                           <span class="anchorjs-icon"></span>
-                       </a><i18n:text key="degree">Abschluss</i18n:text>
-                    </h3>
-                </span>
-                else()}
-                 <p class="autText">{$node/@when/string()||'&#32;'||$node/tei:label}</p> 
--->
-                 <p class="autText">{local:passthru($node)}</p> 
-            </span>
-         case element(tei:term) return   
-            let $getLemId:=  substring($node/@ref/string(),7,5) 
-                return
-                    if (starts-with($node/@ref, 'lemma:')) then
-                        <span class="{('term hi_'||'lemma'||$getLemId)}">
-                            <a href="{session:encode-url(xs:anyURI('lemma.html?aid=' || $getLemId))}">{($node/text())}</a>
-                        </span> 
-                    else()
-        default return local:passthru($node)
-};
-
-declare function local:passthru($nodes as node()*) as item()* {
-    for $node in $nodes/node() return app:AUTsummary($node)
-};:)
-
 
 
 (:funx used in author.html and lemma.html:)
-declare function app:placeNames($node as node()) {
-
-    let $placesHTML :=  for $place in $node//tei:placeName
-                            let $getGetId   := substring($place/@ref,7,7)
-                            let $replaceGet :=  'http://www.getty.edu/vow/TGNFullDisplay?find=&amp;place=&amp;nation=&amp;english=Y&amp;subjectid=' || $getGetId
-                            return
-                                 <span class="{('place hi_'||'getty'||$getGetId)}">
-                                    <a target="blank" href="{$replaceGet}">
-                                        {$place || $config:nbsp}
-                                        <span class="glyphicon glyphicon-new-window" aria-hidden="true"></span>
-                                    </a>
-                                 </span>
-    return $placesHTML
-};
-
 declare function app:cited ($node as node(), $model as map(*), $lang as xs:string?, $aid as xs:string?, $lid as xs:string?) {
-        <ul class="list-unstyled">
-        {(:let $analyze-section  := if (request:get-parameter('aid', '')) then $model('currentAuthor')//tei:text else  $model('currentLemma')//tei:text:)
-        let $analyze-section  := if (request:get-parameter('aid', '')) then doc($config:tei-authors-root || "/" || sutil:normalizeId($aid) || ".xml")//tei:text else  doc($config:tei-lemmata-root || "/" || sutil:normalizeId($lid) || ".xml")//tei:text
-        let $cited :=
-            for $entity in $analyze-section//tei:bibl[@sortKey]
-                let $ansetzungsform := $entity/@sortKey/string()
-                let $author         := sutil:formatName($entity//tei:persName[1])
+        (:let $analyze-section  := if (request:get-parameter('aid', '')) then $model('currentAuthor')//tei:text else  $model('currentLemma')//tei:text:)
+        let $analyze-section  := if (request:get-parameter('aid', '')) then
+ doc($config:tei-authors-root || "/" || sutil:normalizeId($aid) || ".xml")//tei:text
+ else
+  doc($config:tei-lemmata-root || "/" || sutil:normalizeId($lid) || ".xml")//tei:text
+        let $citedP :=
+            for $entity in $analyze-section//tei:bibl[@sortKey][not(@type/string() eq "secondary")]
+                let $author := sutil:formatName($entity//tei:persName[1])
                 let $title          :=  if ($entity//tei:title/@key) then
                                             ($entity//tei:title/@key)[1]
+                                        else if (string($entity//tei:title[1]) ne "") then
+                                            string($entity//tei:title[1])
                                         else ()
                 let $display-title  :=  if ($author and $title) then
                                             concat($author, ': ', $title)
                                         else
-                                            replace($ansetzungsform, '_', ': ')
+                                            replace(replace($entity/@sortKey, '_-_', ': '), '_', ' ')
                 order by $entity/@sortKey
+                collation "http://www.w3.org/2013/collation/UCA"
                 return
-                    if ($entity is ($analyze-section//tei:bibl[@sortKey][@sortKey = $entity/@sortKey])[1]) then
+                    if ($entity is ($analyze-section//tei:bibl[@sortKey][@sortKey = $entity/@sortKey])[1]) then (: only for the first one :)
                             <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;cursor:pointer;" onclick="highlightSpanClassInText('hi_{translate($entity/@sortKey, ':', '_')}',this)">
                                 <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$display-title} ({count($analyze-section//tei:bibl[@sortKey][@sortKey eq $entity/@sortKey])})
                             </li>
                         else ()
-       return if ($cited) then $cited  else  <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;">no data</li> }
+
+        let $citedS :=
+            for $entity in $analyze-section//tei:bibl[@sortKey][@type/string() eq "secondary"]
+                let $author         := sutil:formatName($entity//tei:persName[1])
+                let $title          :=  if ($entity//tei:title/@key) then
+                                            ($entity//tei:title/@key)[1]
+                                        else if (string($entity//tei:title[1]) ne "") then
+                                            string($entity//tei:title[1])
+                                        else ()
+                let $display-title  :=  if ($author and $title) then
+                                            concat($author, ': ', $title)
+                                        else
+                                            replace(replace($entity/@sortKey, '_-_', ': '), '_', ' ')
+                order by $entity/@sortKey
+                collation "http://www.w3.org/2013/collation/UCA"
+                return
+                    if ($entity is ($analyze-section//tei:bibl[@sortKey][@sortKey = $entity/@sortKey])[1]) then (: only for the first one :)
+                            <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;cursor:pointer;" onclick="highlightSpanClassInText('hi_{translate($entity/@sortKey, ':', '_')}',this)">
+                                <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$display-title} ({count($analyze-section//tei:bibl[@sortKey][@sortKey eq $entity/@sortKey])})
+                            </li>
+                        else ()
+
+       let $internalMargin := if ($citedP and $citedS) then "margin-top:10px;" else ""
+       return 
+        <ul class="list-unstyled">
+            {if ($citedP) then
+ <section>  <h4 style="margin: auto; font-weight:bold;"><i18n:text key="primaryLit">Primary</i18n:text></h4>
+               <ul class="list-unstyled">
+                    {$citedP}
+               </ul>
+                </section>
+             else ()
+            }
+            {if ($citedS) then
+               <section style="{$internalMargin}">
+               <h4 style="margin: auto; font-weight:bold;"><i18n:text key="secondaryLit">Secondary</i18n:text></h4>
+               <ul class="list-unstyled">
+                    {$citedS}
+               </ul>
+                </section>
+             else ()
+            }
+            {if (not($citedP) and not($citedS)) then
+                <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;"><i18n:text key="noData">no data</i18n:text></li>
+ else ()
+            }
         </ul>
 };
 
@@ -1597,6 +1465,7 @@ declare function app:lemmata ($node as node(), $model as map(*), $lang as xs:str
                 for $entity in $analyze-section//tei:term
                     let $ansetzungsform := $entity/@key/string()
                     order by $entity/@key
+                    collation "http://www.w3.org/2013/collation/UCA"
                     return if ($entity is ($analyze-section//tei:term[(tokenize(string(@ref), ' '))[1] = (tokenize(string($entity/@ref), ' '))[1]])[1]) then
                                 <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;cursor:pointer;" onclick="highlightSpanClassInText('hi_{translate((tokenize(string($entity/@ref), ' '))[1], ':', '_')}',this)">
                                      <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$ansetzungsform} ({count($analyze-section//tei:term[@ref eq $entity/@ref])})
@@ -1613,19 +1482,22 @@ declare function app:persons($node as node(), $model as map(*), $aid as xs:strin
                     doc($config:tei-authors-root || "/" || sutil:normalizeId($aid) || ".xml")//tei:text
                 else
                     doc($config:tei-lemmata-root || "/" || sutil:normalizeId($lid) || ".xml")//tei:text
-            let $persons :=
-                for $entity in $analyze-section//tei:persName[not(parent::tei:author)]
+            let $persons := $analyze-section//tei:persName[not(parent::tei:author)]
+                let $authors := $analyze-section//tei:persName[parent::tei:author]
+                    let $pElems :=
+                for $entity in $persons
                     let $ansetzungsform := app:resolvePersname($entity)
                     order by $entity/@key
+                    collation "http://www.w3.org/2013/collation/UCA"
                     return
                         (:exclude author entity:)
                         if (substring($entity/@ref, 8,5) eq $analyze-section/ancestor::tei:TEI/@xml:id) then ()
-                        else if ($entity is ($analyze-section//tei:persName[(tokenize(string(@ref), ' '))[1] = (tokenize(string($entity/@ref), ' '))[1]])[1]) then
+                        else if ($entity is ($analyze-section//tei:persName[not(parent::tei:author)][(tokenize(string(@ref), ' '))[1] = (tokenize(string($entity/@ref), ' '))[1]])[1]) then
                            <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial; cursor:pointer;" onclick="highlightSpanClassInText('hi_{translate((tokenize(string($entity/@ref), ' '))[1], ':', '_')}',this)">
-                                <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$ansetzungsform} ({count($analyze-section//tei:persName[@ref eq $entity/@ref])})
+                                <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$ansetzungsform} ({count($analyze-section//tei:persName[@ref eq $entity/@ref][not(parent::tei:author)])})
                            </li>
                         else ()
-            return if ($persons) then $persons else  <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;">no data</li>
+            return if ($pElems) then $pElems else  <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;">no data</li>
         }</ul>
 };
 
@@ -1639,6 +1511,7 @@ declare function app:places ($node as node(), $model as map(*), $aid as xs:strin
                                               else
                                                     xs:string($entity)
                         order by $entity/@key
+                        collation "http://www.w3.org/2013/collation/UCA"
                         return if ($entity is ($analyze-section//tei:placeName[(tokenize(string(@ref), ' '))[1] = (tokenize(string($entity/@ref), ' '))[1]])[1]) then
                                    <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;cursor:pointer;" onclick="highlightSpanClassInText('hi_{translate((tokenize(string($entity/@ref), ' '))[1], ':', '_')}',this)">
                                         <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$ansetzungsform} ({count($analyze-section//tei:placeName[@ref = $entity/@ref])})
@@ -1652,7 +1525,7 @@ declare function app:places ($node as node(), $model as map(*), $aid as xs:strin
 (: ----------------- ... from LEMMAta ------------------- 
  : extract title etc. from $model('currentLemma').
  :)
- declare function app:LEMtitle($node as node(), $model as map(*)) {
+declare function app:LEMtitle($node as node(), $model as map(*)) {
        $model('currentLemma')//tei:titleStmt/tei:title[@type='short']/text()
 };
   
@@ -3638,4 +3511,3 @@ declare function app:makeCooperatorEntry($person as element(tei:person), $lang a
         </div>
     return $content
 };
-

@@ -565,9 +565,10 @@ declare function net:deliverAuthorsHTML($netVars as map()*) {
 };
 
 declare function net:deliverConceptsHTML($netVars as map()*) {
-    let $validation := sutil:LEMvalidateId($netVars('paramap')?('lid'))
+    let $lid := sutil:normalizeId($netVars('paramap')?('lid'))
+    let $validation := sutil:LEMvalidateId($lid)
     return
-        if ($validation eq 1) then () (: TODO dict. entry is available :)
+        if ($validation eq 1) then net:forward-to-html(substring($netVars('path'), 4), $netVars) (: TODO dict. entry is available :)
         else if ($validation eq 0) then net:error(404, $netVars, 'lemma-not-yet-available')
         else net:error(404, $netVars, ())
 };

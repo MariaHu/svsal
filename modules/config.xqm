@@ -23,6 +23,7 @@ import module namespace console = "http://exist-db.org/xquery/console";
 
 import module namespace i18n    = "http://exist-db.org/xquery/i18n"     at "i18n.xqm";
 
+declare default collation "http://www.w3.org/2013/collation/UCA";
 
 (: ==================================================================================== :)
 (: OOOooo... Configurable Section for the School of Salamanca Web-Application ...oooOOO :)

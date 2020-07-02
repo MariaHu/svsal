@@ -236,7 +236,7 @@ declare function index:getFragmentNodes($work as element(tei:TEI), $fragmentatio
 ~   for the production of citeID, crumbtrails etc. in the 
 ~   final index creation through index:createIndexNodes().
 :)
-declare function index:extractNodeStructure($wid as xs:string, $input as node()*, $xincludes as attribute()*, $fragmentIds as map()?) as element(sal:node)* {
+declare function index:extractNodeStructure($wid as xs:string, $input as node()*, $xincludes as attribute()*, $fragmentIds as map(*)?) as element(sal:node)* {
     for $node in $input return
         typeswitch($node)
             case element() return
@@ -460,7 +460,7 @@ declare function index:constructLabel($node as element(sal:node)) as xs:string? 
         else $prefix || $this (: this will only return one of both, if any at all :)
 };
 
-declare function index:makeCrumb($wid as xs:string, $node as node(), $fragmentIds as map()?) as element(a)? {
+declare function index:makeCrumb($wid as xs:string, $node as node(), $fragmentIds as map(*)?) as element(a)? {
     let $class := index:dispatch($node, 'class')
     return
         if ($class) then

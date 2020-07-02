@@ -1343,6 +1343,27 @@ CSS-Solution from http://stackoverflow.com/questions/18192082/bootstrap-3-navbar
     background-color: #ccc;
 }
 
+it {
+    font-style: italic;
+}
+
+a.unavailable {
+  text-decoration-style: dashed;
+}
+
+.lemma_link::before {
+  font-weight: bold;
+  color: #c0c0d4;
+  content: "‣\202F";
+}
+
+.external_link:after {
+  color: #c0c0d4;
+  vertical-align: super;
+  font-size: small;
+  content: "\202F↗";     /* ⏩ */
+}
+
 /* Dropdown submenu */
 .dropdown-submenu {
     position: relative;

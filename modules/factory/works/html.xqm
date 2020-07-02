@@ -23,6 +23,7 @@ import module namespace config     = "http://www.salamanca.school/xquery/config"
 import module namespace sutil      = "http://www.salamanca.school/xquery/sutil"         at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
 import module namespace index      = "https://www.salamanca.school/factory/works/index" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/index.xqm";
 import module namespace txt        = "https://www.salamanca.school/factory/works/txt"   at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
+import module namespace render-app = "http://www.salamanca.school/xquery/render-app"     at "xmldb:exist:///db/apps/salamanca/modules/render-app.xqm";
 
 
 
@@ -269,8 +270,7 @@ declare function html:getPagesFromDiv($div) {
 :)
 (: TODO: currently, this merely creates a "Vol. X" teaser at the beginning of volumes - this means that fragmentation depth cannot go below (front|body|back)/* ! :)
 declare function html:makeAncestorTeasers($fragmentRoot as element()) {
-    let $debug := if ($config:debug = ("trace")) then console:log("[HTML] create ancestor teasers for " || local-name($fragmentRoot) || " " || $fragmentRoot/@xml:id/string() || " ...") else ()
-    return
+(:    let $debug := if ($config:debug = ("trace")) then console:log("[HTML] create ancestor teasers for " || local-name($fragmentRoot) || " " || $fragmentRoot/@xml:id/string() || " ...") else ():)
     (: determine whether fragment is first structural element of volume :)
     if ($fragmentRoot[ancestor-or-self::tei:text[@type eq 'work_volume'] 
                       and not(preceding::*[self::tei:div or self::tei:titlePage] 
@@ -340,7 +340,9 @@ declare function html:makeSummaryTitle($node as element()) as element(div) {
 
 
 (:
-~ Renders a marginal element (currently all tei:note as well as label[@place eq 'margin']; head[@place eq 'margin'] are treated as ordinary head)
+~ Renders a marginal element
+~ (currently all tei:note as well as label[@place eq 'margin'];
+~  head[@place eq 'margin'] are treated as ordinary head)
 :)
 declare function html:makeMarginal($node as element()) as element(div) {
     let $label := if ($node/@n) then <span class="note-label">{$node/@n || ' '}</span> else ()
@@ -456,7 +458,7 @@ declare function html:makePagination($node as node()?, $model as map(*)?, $wid a
 
 
 declare function html:makeClassableString($str as xs:string) as xs:string? {
-    replace($str, '[,: ]', '')
+    replace($str, '[,: ]', '_')
 };
 
 
@@ -644,7 +646,12 @@ declare function html:resolveURI($node as element(), $targets as xs:string) as x
 ~ @param $mode : the mode for which the function shall generate results
 :)
 declare function html:dispatch($node as node(), $mode as xs:string) {
-    let $debug := if ($config:debug = ("trace") and $node/self::tei:pb) then console:log("[HTML] dispatching html creation for " || local-name($node) || " " || $node/@xml:id/string() || " ...") else ()
+    let $debug := if ($config:debug = ("trace") and $node/self::tei:pb) then
+                    let $pos := count($node/preceding::tei:pb) + 1
+                    return if (($pos eq 1 or $pos mod 20 eq 0) and $config:debug = "trace") then
+                        console:log("[HTML] dispatching html creation for " || local-name($node) || " " || $node/@xml:id/string() || " ...")
+                    else ()
+                  else ()
     let $rendering :=
         typeswitch($node)
             case text()                     return html:textNode($node, $mode)
@@ -700,7 +707,7 @@ declare function html:dispatch($node as node(), $mode as xs:string) {
             case element(tei:supplied)      return html:supplied($node, $mode)
             case element(tei:table)         return html:table($node, $mode)
             case element(tei:teiHeader)     return ()
-            case element(tei:term)          return html:term($node, $mode)
+            case element(tei:term)          return render-app:term($node, $mode, ())
             case element(tei:text)          return html:text($node, $mode) 
             case element(tei:title)         return html:title($node, $mode)
             case element(tei:titlePage)     return html:titlePage($node, $mode)
@@ -717,7 +724,7 @@ declare function html:dispatch($node as node(), $mode as xs:string) {
     return
         if ($mode eq 'html') then
             if (html:isCitableWithTeaser($node)) then
-                let $debug := if ($config:debug = ("trace")) then console:log("[HTML] create summary title for " || local-name($node) || " " || $node/@xml:id/string() || " ...") else ()
+(:                let $debug := if ($config:debug = ("trace")) then console:log("[HTML] create summary title for " || local-name($node) || " " || $node/@xml:id/string() || " ...") else ():)
                 let $citationAnchor := html:makeSummaryTitle($node)
                 return ($citationAnchor, $rendering)
             else if (index:isBasicNode($node)) then 
@@ -732,7 +739,7 @@ declare function html:dispatch($node as node(), $mode as xs:string) {
                     (: for these elements, $toolboxes are created right in their html: function if required :)
                     $rendering
                 else 
-                    let $debug := if ($config:debug = ("trace")) then console:log("[HTML] make section toolbox for " || local-name($node) || " " || $node/@xml:id/string() || " ...") else ()
+(:                    let $debug := if ($config:debug = ("trace")) then console:log("[HTML] make section toolbox for " || local-name($node) || " " || $node/@xml:id/string() || " ...") else ():)
                     let $toolbox :=html:makeSectionToolbox($node)
                     return
                         <div class="hauptText">
@@ -748,7 +755,7 @@ declare function html:dispatch($node as node(), $mode as xs:string) {
 (: ####++++ Element functions (ordered alphabetically) ++++#### :)
 
 declare function html:passthru($nodes as node()*, $mode as xs:string) as item()* {
-    $nodes/node() ! html:dispatch($node, $mode)
+    $nodes/node() ! html:dispatch(., $mode)
 };
 
 (: FIXME: In the following, the #anchor does not take account of html partitioning of works. Change this to use semantic section id's. :)
@@ -956,20 +963,20 @@ declare function html:g($node as element(tei:g), $mode as xs:string) {
                 if ($node/text()) then 
                     xs:string($node/text())
                 else error(xs:QName('html:g'), 'Found tei:g without text content') (: ensure correct character markup :)
-            let $charCode := (: make sure there is something to parse :)
+            let $charCode :=                                                       (: make sure there is something to parse :)
                 if (substring($node/@ref,2)) then
                     substring($node/@ref,2)
                 else
                     error(xs:QName('html:g'), "g/@ref is invalid, there is no code. g's parent: ", serialize($node/parent::*))
             let $char := $config:tei-specialchars/tei:char[@xml:id eq $charCode]
             let $test :=                                                           (: make sure that the char reference is correct :)
-                if (not($char)) then 
+                if (empty($char)) then 
                     error(xs:QName('html:g'), concat('g/@ref is invalid, the char code does not exist: ', $charCode))
                 else ()
             let $precomposedString := 
                 if ($char/tei:mapping[@type='precomposed']/text()) then 
                     string($char/tei:mapping[@type='precomposed']/text())
-            else ()
+                else ()
             let $composedString := 
                 if ($char/tei:mapping[@type='composed']/text()) then
                     string($char/tei:mapping[@type='composed']/text())

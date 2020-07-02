@@ -103,7 +103,7 @@
 */
                 $offset = $(targetId).offset().top;
                 console.log("$('" + targetId + "').offset().top = " + $offset + ".")
-                goHere = $offset - 80;
+                goHere = $offset - parseInt($('div.navbar-white').css("height")) - 15;
                 console.log("Go to " + goHere + ".")
                 $("html, body").animate({scrollTop: goHere}, 800, 'swing', function () {
                                 $(targetId).effect( "highlight", {color:'LightSkyBlue'}, 1200 );

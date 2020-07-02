@@ -65,7 +65,7 @@
     <sal:lemma xml:id="lemma_d1e136" type="term">furtum | hurto</sal:lemma> <!-- uncertain: robo -->
     <!-- TODO <sal:lemma xml:id="lemma_d1e139" type="term">habitus | habito</sal:lemma> to be revised! -->
     <sal:lemma xml:id="lemma_d1e142" type="term">haeres | haereditas | heredero | herencia</sal:lemma>
-    <sal:lemma xml:id="lemma_d1e145" type="term">haeresia | haereticus | herejía | hereje</sal:lemma>
+    <sal:lemma xml:id="lemma_d1e145" type="term">haeresis | haeresia | haereticus | herejía | hereje</sal:lemma>
     <sal:lemma xml:id="lemma_d1e148" type="term">homicidium | homicidio</sal:lemma>
     <sal:lemma xml:id="lemma_d1e152" type="term">homo | humanus | hombre | humano</sal:lemma>
     <sal:lemma xml:id="lemma_d1e155" type="term">honor | honoratio | homenaje | honra | honrra | onrra</sal:lemma>

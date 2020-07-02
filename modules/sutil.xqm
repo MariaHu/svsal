@@ -76,17 +76,17 @@ declare function sutil:AUTvalidateId($aid as xs:string?) as xs:integer {
 };
 
 declare function sutil:LEMexists($lid as xs:string?) as xs:boolean {
-    (: TODO when we have a list of lemma ids :)
-    (:if ($lid) then boolean(doc(.../...) eq $lid])
-    else :)
-    false()
+    if ($lid) then
+    boolean(doc($config:tei-meta-root || '/' || 'lemmata-list.xml')//tei:text//tei:bibl/@corresp[lower-case(substring-after(., 'lemma:')) eq lower-case($lid)])
+    else false()
 };
 
 (: 1 = valid & available; 0 = valid, but not yet available; -1 = not valid :)
 declare function sutil:LEMvalidateId($lid as xs:string?) as xs:integer {
     if ($lid and matches($lid, '^[lL]\d{4}$')) then
-        (: TODO: additional conditions when lemmata/entries are available - currently this will always resolve to -1 :)
-        if (sutil:LEMexists(sutil:normalizeId($lid))) then 0
+        if (sutil:LEMexists(sutil:normalizeId($lid))) then
+            if (doc-available($config:tei-lemmata-root || '/' || $lid || '.xml')) then 1
+            else 0
         else -1
     else -1    
 };

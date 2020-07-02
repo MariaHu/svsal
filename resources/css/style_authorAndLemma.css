@@ -32,7 +32,6 @@ body {
 	width:45%;
 }
 
-
 .places {
 	display: none;
 }
@@ -87,6 +86,15 @@ a.anchor{/*display: block;*/ position: relative; top: -50px; visibility: hidden;
     opacity:0.25;
     filter:alpha(opacity=25);   /* for <= IE 8 */
     pointer-events: none;       /* click through it */
+}
+
+.lemma_link {
+    font-style: italic;
+}
+
+.panel .menu-toggle {
+    padding-left: 1.3em !important;
+    text-indent: -0.7em;
 }
 
 /*Make header title smaller for mobile View*/
@@ -166,6 +174,7 @@ a.anchor{/*display: block;*/ position: relative; top: -50px; visibility: hidden;
     text-align: center;
     width: 1em;
 }
+
 @media (max-width: 480px) {
 .anchorjs-link {
     display: none;

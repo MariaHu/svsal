@@ -18,6 +18,7 @@ declare namespace rest          = "http://exquery.org/ns/restxq";
 declare namespace util          = "http://exist-db.org/xquery/util";
 
 import module namespace console = "http://exist-db.org/xquery/console";
+
 import module namespace config  = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
 
 
@@ -120,7 +121,6 @@ declare function api:deliverRDF($content, $name as xs:string) {
         $content
 };
 
-
 declare function api:deliverTXT($content as xs:string?, $name as xs:string) {
     let $filename := translate($name, ':.', '_-') || '.txt'
     let $contentDisposition := 'attachment; filename="' || $filename || '"'
@@ -162,7 +162,6 @@ declare function api:deliverTurtleBinary($content as xs:base64Binary?, $filename
         $content
 };
 
-
 declare function api:deliverHTML($content) {
         <rest:response>
             <http:response status="200">
@@ -172,7 +171,6 @@ declare function api:deliverHTML($content) {
         </rest:response>,
         $content 
 };
-
 
 declare function api:deliverZIP($content as xs:base64Binary?, $name as xs:string) {
     let $filename := $name || '.zip'

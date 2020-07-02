@@ -38,7 +38,8 @@ import module namespace html        = "https://www.salamanca.school/factory/work
 import module namespace txt         = "https://www.salamanca.school/factory/works/txt"   at "factory/works/txt.xqm";
 import module namespace iiif        = "https://www.salamanca.school/factory/works/iiif"  at "factory/works/iiif.xqm";
 
-declare option exist:timeout "43000000"; (: in miliseconds, 25.000.000 ~ 7h, 43.000.000 ~ 12h :)
+(: declare option exist:timeout "43000000"; (/: in miliseconds, 25.000.000 ~ 7h, 43.000.000 ~ 12h :)
+declare option exist:timeout "86400000"; (: in miliseconds, 25.000.000 ~ 7h, 43.000.000 ~ 12h :)
 declare option exist:output-size-limit "5000000"; (: max number of nodes in memory :)
 
 (:
@@ -1001,7 +1002,7 @@ declare function admin:createNodeIndex($wid as xs:string*) {
     (: define the works to be indexed: :)
     let $teiRoots := 
         if ($wid = '*') then
-            collection($config:tei-works-root)//tei:TEI[./tei:text[@type = ("work_multivolume", "work_monograph")]]
+            collection($config:tei-works-root)//tei:TEI[.//tei:text[@type = ("work_multivolume", "work_monograph")]]
         else
             collection($config:tei-works-root)//tei:TEI[@xml:id = distinct-values($wid)]
 
@@ -1009,7 +1010,7 @@ declare function admin:createNodeIndex($wid as xs:string*) {
     let $indexResults :=
         for $tei in $teiRoots return
             let $start-time-a   := util:system-time()
-            let $wid            := xs:string($tei/@xml:id)
+            let $wid            := string($tei/@xml:id)
             let $indexing       := index:makeNodeIndex($tei)
             let $index                  := $indexing('index')
             let $fragmentationDepth     := $indexing('fragmentation_depth')

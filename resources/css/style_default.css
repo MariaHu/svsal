@@ -9,6 +9,8 @@
     Orange:     #B57D29
     Orange2:    #CF9416
 */
+
+/*  Navbar */
 .navbar-default {
 color:#DEDFE7;
 background-color:#102873;
@@ -16,10 +18,12 @@ font-size:14px;
 border-bottom-width:1px;
 border-color:#39529B
 }
+
 .navbar-default .navbar-brand,
 .navbar-default .navbar-nav > li > a {
 color:#DEDFE7
 }
+
 .navbar-default .navbar-brand a:hover,
 .navbar-default .navbar-brand a:focus,
 .navbar-default .navbar-nav > li > a:hover,
@@ -29,6 +33,7 @@ background-color:#03123F;
 background:-webkit-linear-gradient(top, #102873 0%, #081D5C 100%);
 background:linear-gradient(to bottom, #102873 0%, #081D5C 100%)
 }
+
 .navbar-default .navbar-brand:focus,
 .navbar-default .navbar-brand:hover,
 .navbar-default .navbar-nav > .active > a,
@@ -37,6 +42,7 @@ background:linear-gradient(to bottom, #102873 0%, #081D5C 100%)
 color:#DEDFE7;
 background-color:#081D5C
 }
+
 .navbar-default .btn-default {
 color:#DEDFE7;
 background-color:#102873;
@@ -44,6 +50,7 @@ background:none;
 border:1px solid #39529B;
 border-radius:0
 }
+
 .navbar-default .btn-default.focus,
 .navbar-default .btn-default:focus {
 color:#DEDFE7;
@@ -51,6 +58,7 @@ background-color:#03123F;
 border:1px solid #39529B;
 border-radius:0
 }
+
 .navbar-default .btn-default.active,
 .navbar-default .btn-default.active:focus,
 .navbar-default .btn-default.focus:active,
@@ -69,16 +77,20 @@ border:3px solid #DEDFE7;
 border-radius:0;
 padding:4px 8px
 }
+
 .navbar-default .navbar-toggle,
 .navbar-default .navbar-toggle:hover .icon-bar,
 .navbar-default .navbar-toggle:focus .icon-bar {
 border-color:#337ab7
 }
+
 .navbar-default .navbar-toggle:hover,
 .navbar-default .navbar-toggle:focus,
 .navbar-default .navbar-toggle .icon-bar {
 background-color:white
 }
+
+/* Buttons */
 .btn-sample:hover, 
 .btn-sample:focus, 
 .btn-sample:active, 
@@ -88,6 +100,7 @@ color:#FFFFFF;
 background-color:#ffffff; 
 border-color:#337AB7
 } 
+
 html,
 body {
 height:100%;
@@ -690,6 +703,27 @@ font-family:'Junicode', 'Cardo', 'Andron', 'Cabin' !important
 .carousel-inner > .item > img,
 .carousel-inner > .item > a > img {
 width:100%
+}
+
+it {
+    font-style: italic;
+}
+
+a.unavailable {
+  text-decoration-style: dashed;
+}
+
+.lemma_link::before {
+  font-weight: bold;
+  color: navy;
+  content: "‣\202F";
+}
+
+.external_link:after {
+  color: navy;
+  vertical-align: super;
+  font-size: small;
+  content: "\202F↗";     /* ⏩ */
 }
 
 /*print all accordion stuff collapsed*/
