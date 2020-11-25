@@ -8,8 +8,8 @@ xquery version "3.1" encoding "UTF-8";
 
 module namespace textsv1 = "http://api.salamanca.school/v1/texts";
 
-declare namespace tei     = "http://www.tei-c.org/ns/1.0";
 declare namespace sal     = "http://salamanca.adwmainz.de";
+declare namespace tei     = "http://www.tei-c.org/ns/1.0";
 
 declare namespace exist   = "http://exist.sourceforge.net/NS/exist";
 declare namespace http    = "http://expath.org/ns/http-client";

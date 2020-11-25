@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Source: https://github.com/dret/XIPr --><!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --><!-- XInclude Processor (XIPr) - Erik Wilde (http://dret.net/netdret/) --><!-- This is free and unencumbered software released into the public domain.
+<!-- Source: https://github.com/dret/XIPr -->
+<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+<!-- XInclude Processor (XIPr) - Erik Wilde (http://dret.net/netdret/) -->
+<!-- This is free and unencumbered software released into the public domain.
      Anyone is free to copy, modify, publish, use, compile, sell, or distribute this software,
      either in source code form or as a compiled binary, for any purpose, commercial or
-     non-commercial, and by any means. Enjoy! --><!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --><!-- XIPr Instructions: Include the XIPr XSLT document in your XSLT 2.0 stylesheet using
+     non-commercial, and by any means. Enjoy! -->
+<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+<!-- XIPr Instructions: Include the XIPr XSLT document in your XSLT 2.0 stylesheet using
      <xsl:include href=".../xipr.xsl"> and initiate the XInclude process at any node (only document
      and element nodes are reasonable node kinds, though) of a given XML document with the following
-     instruction: <xsl:apply-templates select="$node" mode="xipr"/> --><!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - --><!-- XInclude Instructions: For instructions on how to use XInclude, please look at the XInclude specification
+     instruction: <xsl:apply-templates select="$node" mode="xipr"/> -->
+<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+<!-- XInclude Instructions: For instructions on how to use XInclude, please look at the XInclude specification
      (http://www.w3.org/TR/xinclude/) or other resources available on the Web. Please remember that the XInclude
      elements <xi:include> and <xi:fallback> must use the XInclude namespace (http://www.w3.org/2001/XInclude),
-     otherwise they will not be recognized as XInclude elements. --><!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+     otherwise they will not be recognized as XInclude elements. -->
+<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xi="http://www.w3.org/2001/XInclude" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xipr="http://dret.net/projects/xipr/" version="2.0">
     <xsl:template match="/*">
 		<!-- if there is no other template handling the document element,

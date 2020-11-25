@@ -9,8 +9,8 @@ Bundling such functions here shall prevent interdependencies between larger and 
 
 module namespace sutil = "http://www.salamanca.school/xquery/sutil";
 
-declare namespace tei          = "http://www.tei-c.org/ns/1.0";
 declare namespace sal          = "http://salamanca.adwmainz.de"; 
+declare namespace tei          = "http://www.tei-c.org/ns/1.0";
 
 declare namespace templates    = "http://exist-db.org/xquery/templates";
 declare namespace util         = "http://exist-db.org/xquery/util";

@@ -564,7 +564,7 @@ declare function index:isLabelNode($node as element()) as xs:boolean {
     xs:boolean(
         index:isIndexNode($node) and
         not($node/ancestor::tei:note) and
-            (
+        (
             $node/self::tei:text[@type eq 'work_volume'] or
             $node/self::tei:div[$config:citationLabels(@type)?('isCiteRef')] or
             $node/self::tei:milestone[$config:citationLabels(@unit)?('isCiteRef')] or
@@ -663,7 +663,9 @@ declare function index:isUnnamedCiteIDNode($node as element()) as xs:boolean {
 :)
 
 (:
-~ Anchor and page nodes occur within main nodes, marginal nodes, or structural nodes, and have no content.
+~ Anchor and page nodes occur within main nodes, marginal nodes, or structural nodes,
+~ and have no content.
+~ More concretely, milestone[@unit ne 'other'] elements
 ~ (NOTE: should work with on-the-fly copying of sections. )
 :)
 declare function index:isAnchorNode($node as node()) as xs:boolean {
@@ -749,7 +751,9 @@ declare function index:isListNode($node as node()) as xs:boolean {
 
 
 (:
-~ Structural nodes are high-level nodes containing any of the other types of nodes (main, marginal, anchor nodes).
+~ Structural nodes are high-level nodes containing any of the other types of nodes
+~ (main, marginal, anchor nodes).
+~ More concretely, div, front, back, or text[@type='work_volume'] nodes.
 :)
 declare function index:isStructuralNode($node as node()) as xs:boolean {
 (:
