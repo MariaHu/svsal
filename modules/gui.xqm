@@ -447,24 +447,24 @@ declare
             <div class="row">
             <!-- the Academy -->
                 <div class="col-md-3 hidden-sm hidden-xs">
-                    <a href="http://www.adwmainz.de/"><img class="img-responsive" style="margin-top: 10%" src="resources/img/logos_misc/logo_akademie.png"/></a>
+                    <a href="http://www.adwmainz.de/"><img class="img-responsive" style="margin-top: 5%; height: 80px;" src="resources/img/logos_misc/logo_akademie.png"/></a>
                 </div>
                 <div class="hidden-lg hidden-md col-sm-4" style="text-align: center; margin-top: 1%">
                     <a href="http://www.adwmainz.de/"><p><span class="glyphicon glyphicon-new-window" aria-hidden="true"></span> Akademie der Wissenschaften und der <br/>Literatur | Mainz</p></a>
                 </div>
             <!-- the University -->   
                 <div class="col-md-3 hidden-sm hidden-xs" >
-                    <a href="http://www2.uni-frankfurt.de"><img style="margin-top: 3%" class="img-responsive" src="resources/img/logos_misc/goethe-uni-logo.gif"/></a>
+                    <a href="http://www2.uni-frankfurt.de"><img class="img-responsive" style="margin-top: 5%; height: 90px;" src="resources/img/logos_misc/goethe-uni-logo.gif"/></a>
                  </div>
                 <div class="hidden-lg hidden-md col-sm-4" style="text-align: center; margin-top: 1%">
                     <a href="http://www2.uni-frankfurt.de"><p><span class="glyphicon glyphicon-new-window" aria-hidden="true"></span> Goethe-Universität<br/>Frankfurt<br/>Institut für Philosphie</p></a>
                 </div>
-            <!-- the Institute -->    
+            <!-- the Max Planck Institute -->    
                 <div class="col-md-3 hidden-sm hidden-xs">
-                    <a href="http://www.rg.mpg.de"><img style="margin-top: 9%; float: right; height: 100%;" class="img-responsive" src="resources/img/logos_misc/mpier.svg"/></a>
+                    <a href="http://www.rg.mpg.de"><img class="img-responsive" style="margin-top: 5%; float: right; height: 110px;" src="resources/img/logos_misc/mpilhlt-small.svg"/></a>
                 </div>
                 <div class="hidden-lg hidden-md col-sm-4" style="text-align: center;margin-top: 1%">
-                    <a href="http://www.rg.mpg.de"><p><span class="glyphicon glyphicon-new-window" aria-hidden="true"></span> Max-Planck-Institut<br/>für<br/>europäische Rechtsgeschichte</p></a>
+                    <a href="http://www.rg.mpg.de"><p><span class="glyphicon glyphicon-new-window" aria-hidden="true"></span> Max-Planck-Institut<br/>für Rechtsgeschichte<br/>und Rechtstheorie</p></a>
                 </div>
             <!-- powered by eXist -->        
                  <div class="col-md-3 hidden-sm hidden-xs">
@@ -480,7 +480,7 @@ declare
                     <a href="contact.html"><i class="far fa-envelope"></i>&#32;&#32;<i18n:text key='contact'>Kontakt</i18n:text></a> 
                     | <a  href="legal.html"><i class="fa fa-balance-scale"></i>&#32;&#32;<i18n:text key='legal'>Datenschutz &amp; Impressum</i18n:text></a> 
                     </p>
-                        <p><span style="color:#92A4B1;"></span>&#xA0;&#xA0; <i class="far fa-copyright"></i>&#32;&#32;<span title="{$username}"><i18n:text key="projectName"/> 2015-2020</span>
+                        <p><span style="color:#92A4B1;"></span>&#xA0;&#xA0; <i class="far fa-copyright"></i>&#32;&#32;<span title="{$username}"><i18n:text key="projectName"/> 2015-2025</span>
                     </p>
                 </div>
             </div>
@@ -488,7 +488,7 @@ declare
                 <p>
                 <a href="contact.html"><i class="far fa-envelope"></i>&#32;&#32;<i18n:text key='contact'>Kontakt</i18n:text></a>
                     | <a  href="legal.html"><i class="fa fa-balance-scale"></i>&#32;&#32;<i18n:text key='legal'>Datenschutz &amp; Impressum</i18n:text></a>            </p>
-                    <p><span style="color:#92A4B1;"></span>&#xA0;&#xA0; <i class="fa fa-copyright"></i>&#32;&#32;<span title="{$username}"><i18n:text key="projectName"></i18n:text> 2015-2018</span>
+                    <p><span style="color:#92A4B1;"></span>&#xA0;&#xA0; <i class="fa fa-copyright"></i>&#32;&#32;<span title="{$username}"><i18n:text key="projectName"></i18n:text> 2015-2025</span>
                 </p>
             </div>
             <!-- CC BY -->        
