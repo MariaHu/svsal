@@ -1138,6 +1138,8 @@ declare %templates:wrap
 
 
 (: -- Display a single Work - this is the core function for loading the reading view -- :)
+(: https://www.salamanca.school/de/work.html?wid=W0017 :)
+(: https://www.salamanca.school/de/work.html?wid=W0017&frag=0003_W0017-00-0006-d1-03e9&lang=de :)
 declare
     function app:displaySingleWork($node as node(), 
                                         $model as map(*),
