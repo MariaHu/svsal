@@ -17,7 +17,8 @@ import module namespace admin     = "http://www.salamanca.school/xquery/admin"  
 declare namespace output = "http://www.w3.org/2010/xslt-xquery-serialization";
 declare option output:method "html5";
 declare option output:media-type "text/html";
-declare option exist:timeout "43200000"; (: 12 h :)
+(: declare option exist:timeout "43000000"; (/: in miliseconds, 25.000.000 ~ 7h, 43.000.000 ~ 12h :)
+declare option exist:timeout "86400000"; (: in miliseconds, 25.000.000 ~ 7h, 43.000.000 ~ 12h :)
 
 
 let $config := map {
