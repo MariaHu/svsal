@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html xmlns:i18n="http://exist-db.org/xquery/i18n" data-template="i18n:translate" data-template-catalogues="data/i18n">
     <head>
         <meta charset="UTF-8"/>
@@ -116,13 +115,6 @@
                 });
             </script>
             
-            <!-- Make sure content area is visible -->
-            <script type="text/javascript">
-                $(document).ready(function () {
-                    $("#content").css('padding-top', parseInt($('.alert').css("height")) + 2);
-                });
-            </script>
-
             <!-- ==== jQuery Back to top ==== -->
             <a id="backTop"/>
             <script type="text/javascript">
@@ -141,7 +133,7 @@
                                           }),
                                     o(document).scroll(function () {
                                                             var e = o(window).scrollTop();
-                                                            console.log(e), e &gt;= t ? n.fadeIn(c): n.fadeOut(c)
+                                                            e &gt;= t ? n.fadeIn(c): n.fadeOut(c)
                                                        }),
                                     n.click(function () {
                                                 o("html, body").animate({scrollTop: 0}, {duration: 1200})

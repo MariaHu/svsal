@@ -1,11 +1,12 @@
 xquery version "3.1";
 
-import module   namespace   config  = "http://www.salamanca.school/xquery/config" at "modules/config.xqm";
-import module   namespace   iiif    = "http://www.salamanca.school/xquery/iiif"   at "modules/iiif.xqm";
-import module   namespace   console = "http://exist-db.org/xquery/console";
 declare         namespace   output  = "http://www.w3.org/2010/xslt-xquery-serialization";
 declare         namespace   request = "http://exist-db.org/xquery/request";
-declare          namespace response = "http://exist-db.org/xquery/response";
+declare         namespace response  = "http://exist-db.org/xquery/response";
+
+import module   namespace   console = "http://exist-db.org/xquery/console";
+import module   namespace   config  = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module   namespace   iiif    = "http://www.salamanca.school/xquery/iiif"   at "xmldb:exist:///db/apps/salamanca/modules/iiif.xqm";
 
 declare option output:method "json";
 declare option output:media-type "application/json";

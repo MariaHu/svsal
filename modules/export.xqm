@@ -60,7 +60,7 @@ declare function export:WRKgetTeiHeader($wid as xs:string?, $mode as xs:string?,
 (:
 ~ Recursive teiHeader processing function for fine-grained filtering of header information depending on $mode.
 :)
-declare function local:processHeaderNode($wid as xs:string, $node as node(), $mode as xs:string?, $citeID as xs:string?) {
+declare function export:processHeaderNode($wid as xs:string, $node as node(), $mode as xs:string?, $citeID as xs:string?) {
     switch($mode)
         case 'metadata' return
             typeswitch($node)

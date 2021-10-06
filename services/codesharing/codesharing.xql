@@ -33,7 +33,7 @@ import module namespace ft="http://exist-db.org/xquery/lucene";
 import module namespace session="http://exist-db.org/xquery/session";
 import module namespace util="http://exist-db.org/xquery/util";
 import module namespace xmldb="http://exist-db.org/xquery/xmldb";
-import module namespace cs ="http://hcmc.uvic.ca/namespaces/exist/codesharing" at "codesharing_config.xql";
+import module namespace cs ="http://hcmc.uvic.ca/namespaces/exist/codesharing" at "xmldb:exist:///db/apps/salamanca/services/codesharing/codesharing_config.xql";
 
 (: This should be set to application/tei+xml, but that makes Firefox open a fresh tab, which is annoying. :)
 declare option exist:serialize "method=xml media-type=application/xml encoding=utf-8 indent=yes expand-xincludes=no";

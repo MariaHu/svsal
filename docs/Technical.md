@@ -92,7 +92,7 @@ Over time and with increasing amounts of heterogeneous TEI data to be processed,
 - _marginal nodes_ are nodes representing marginals, such as `tei:note[@place eq 'margin']` or `tei:label[@place eq 'margin']`; _marginal nodes_ usually occur within _main nodes_, but not vice versa;
 - _page nodes_ and _anchor nodes_ are lowest-level nodes representing pages (`tei:pb`) and citation anchors (`tei:milestone`), respectively.
 
-The sum of all these nodes represents the nodes to be indexed (i.e., and index node is in exactly one of the categories above). However, indentifying the node type is important not only for determining whether some TEI node is to be indexed, but plays a crucial part in providing the node with further information during indexing: it's specific "citetrail" (the individual string for the node that is used to create permalink URIs); it's "passagetrail" (the non-technical, verbose information about the context of the node that is used for citation proposals, for instance); or it's "crumbtrail" (used for the hierarchical displaying of links to text units in search results, for example).
+The sum of all these nodes represents the nodes to be indexed (i.e., and index node is in exactly one of the categories above). However, indentifying the node type is important not only for determining whether some TEI node is to be indexed, but plays a crucial part in providing the node with further information during indexing: it's specific "citeID" (the individual string for the node that is used to create permalink URIs); it's "label" (the non-technical, verbose information about the context of the node that is used for citation proposals, for instance); or it's "crumbtrail" (used for the hierarchical displaying of links to text units in search results, for example).
 
 Node categories are defined using boolean functions which, by means of XPath expressions, check whether a node is of the specific type. For example, a function defining _marginal nodes_ might look like this:
 
@@ -119,10 +119,10 @@ The following graphic illustrates the different types of nodes:
 If a new node (e.g., a new TEI element that was hitherto not defined as index node) is to be added to the node indexing procedure, the following steps are necessary:
 1. determine which category of node the new node shall be part of (e.g., _main node_);
 2. in the respective function (e.g., `index:isMainNode`), add a section for the new node to the XPath expression, so that the function does recognize the node as "one of its kind"; by doing so, the node is also recognized as a general index node;
-3. check if there is a function for the respective element defined in the index.xqm (usually named `index:[ELEMENT NAME]()`); if this is the case, you might need to adjust the function; if there is no such function, you will need to add one in order for the new node's information (citetrail, passagetrail, etc.) to be processed correctly;
+3. check if there is a function for the respective element defined in the index.xqm (usually named `index:[ELEMENT NAME]()`); if this is the case, you might need to adjust the function; if there is no such function, you will need to add one in order for the new node's information (citeID, label, etc.) to be processed correctly;
 4. do the same as in 3. with modules for other webdata such as html.xqm or txt.xqm, and also with the configuration file for the xtriples webservice (in services/lod/svsal-xtriples-work.xml) – that is, wherever TEI elements are processed individually.
 
-There might be more (specific) adjustments to be done, e.g. in functions like `index:isNamedCitetrailNode` (determining the kind of citetrail part for a node) or `index:isPassagetrailNode` (determining whether a node is explicitely mentioned in a passagetrail), but a lack of adjustment (or an erroneous configuration, for that matter) will perhaps be revealed through errors in the process of computing the webdata. 
+There might be more (specific) adjustments to be done, e.g. in functions like `index:isNamedciteIDNode` (determining the kind of citeID part for a node) or `index:islabelNode` (determining whether a node is explicitely mentioned in a label), but a lack of adjustment (or an erroneous configuration, for that matter) will perhaps be revealed through errors in the process of computing the webdata. 
 
 ##### Rendering HTML
 

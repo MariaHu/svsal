@@ -6,20 +6,21 @@ xquery version "3.0" encoding "UTF-8";
 
  ----++++#### :)
 
-module namespace addv1 = "http://api.salamanca.school/v1/texts";
+module namespace addv1          = "http://api.salamanca.school/v1/texts";
 
-declare namespace sal = "http://salamanca.adwmainz.de";
-declare namespace tei     = "http://www.tei-c.org/ns/1.0";
+declare namespace sal           = "http://salamanca.adwmainz.de";
+declare namespace tei           = "http://www.tei-c.org/ns/1.0";
 
-declare namespace output="http://www.w3.org/2010/xslt-xquery-serialization";
-declare namespace exist = "http://exist.sourceforge.net/NS/exist";
-import module namespace rest = "http://exquery.org/ns/restxq";
-import module namespace util = "http://exist-db.org/xquery/util";
-import module namespace http = "http://expath.org/ns/http-client";
-import module namespace console     = "http://exist-db.org/xquery/console";
+declare namespace output        = "http://www.w3.org/2010/xslt-xquery-serialization";
+declare namespace exist         = "http://exist.sourceforge.net/NS/exist";
 
-import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace api = "http://www.salamanca.school/xquery/api" at "../api.xqm";
+import module namespace rest    = "http://exquery.org/ns/restxq";
+import module namespace util    = "http://exist-db.org/xquery/util";
+import module namespace http    = "http://expath.org/ns/http-client";
+import module namespace console = "http://exist-db.org/xquery/console";
+
+import module namespace config  = "http://www.salamanca.school/xquery/config"   at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace api     = "http://www.salamanca.school/xquery/api"      at "xmldb:exist:///db/apps/salamanca/modules/api/api.xqm";
 
 (: RESTXQ FUNCTIONS :)
 

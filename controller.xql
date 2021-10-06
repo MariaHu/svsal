@@ -6,11 +6,11 @@ import module namespace xmldb   = "http://exist-db.org/xquery/xmldb";
 import module namespace console = "http://exist-db.org/xquery/console";
 import module namespace util    = "http://exist-db.org/xquery/util";
 import module namespace functx  = "http://www.functx.com";
-import module namespace rest = "http://exquery.org/ns/restxq";
+import module namespace rest    = "http://exquery.org/ns/restxq";
 
-import module namespace config  = "http://www.salamanca.school/xquery/config"     at "modules/config.xqm";
-import module namespace net     = "http://www.salamanca.school/xquery/net"        at "modules/net.xqm";
-import module namespace iiif    = "http://www.salamanca.school/xquery/iiif"       at "modules/iiif.xqm";
+import module namespace config  = "http://www.salamanca.school/xquery/config"     at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace net     = "http://www.salamanca.school/xquery/net"        at "xmldb:exist:///db/apps/salamanca/modules/net.xqm";
+import module namespace iiif    = "http://www.salamanca.school/xquery/iiif"       at "xmldb:exist:///db/apps/salamanca/modules/iiif.xqm";
 
 declare       namespace exist   = "http://exist.sourceforge.net/NS/exist";
 declare       namespace output  = "http://www.w3.org/2010/xslt-xquery-serialization";

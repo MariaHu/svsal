@@ -277,13 +277,13 @@
             <statement n="218" repeat="{/min((100020, count($currentResource[self::itei:text]/descendant::itei:div[@citeID])))}"> <!-- po isContainedBy -->
                 <subject type="uri" prepend="texts/WXXXX:">/($currentResource[self::itei:text]/descendant::itei:div[@citeID])[$repeatIndex]/@citeID</subject>
                 <predicate prefix="po">isContainedBy</predicate>
-                <object type="uri" prepend="texts/">/(if (($currentResource/descendant::itei:div[@citeID])[$repeatIndex]/@citableParent) then concat($currentResource/@in, ':', ($currentResource/descendant::itei:div[@citeID])[$repeatIndex]/@citableParent) else $currentResource/@in)</object>
+                <object type="uri" prepend="texts/">/(if (($currentResource//itei:div[@citeID])[$repeatIndex]/@citableParent) then concat($currentResource/@in, ':', ($currentResource//itei:div[@citeID])[$repeatIndex]/@citableParent) else $currentResource/@in)</object>
             </statement>
 
-            <statement n="219" repeat="{/min((100020, count($currentResource[self::itei:text]/descendant::itei:div[@citeID])))}"> <!-- rdfs seeAlso -->
-                <subject type="uri" prepend="texts/WXXXX:">/($currentResource[self::itei:text]/descendant::itei:div[@citeID])[$repeatIndex]/@citeID</subject>
+            <statement n="219" repeat="{/min((100020, count($currentResource[self::itei:text]//itei:div[@citeID])))}"> <!-- rdfs seeAlso -->
+                <subject type="uri" prepend="texts/WXXXX:">/($currentResource[self::itei:text]//itei:div[@citeID])[$repeatIndex]/@citeID</subject>
                 <predicate prefix="rdfs">seeAlso</predicate>
-                <object type="uri" prepend="https://www.salamanca.school/">/($currentResource/descendant::itei:div[@citeID])[$repeatIndex]/@web</object>
+                <object type="uri" prepend="https://www.salamanca.school/">/($currentResource//itei:div[@citeID])[$repeatIndex]/@web</object>
             </statement>
 
             <!-- head -->

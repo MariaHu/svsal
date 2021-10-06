@@ -23,7 +23,7 @@ declare namespace xmldb   = "http://exist-db.org/xquery/xmldb";
 
 import module namespace console = "http://exist-db.org/xquery/console";
 
-import module namespace api    = "http://www.salamanca.school/xquery/api"         at "../api.xqm";
+import module namespace api    = "http://www.salamanca.school/xquery/api"         at "xmldb:exist:///db/apps/salamanca/modules/api/api.xqm";
 import module namespace config = "http://www.salamanca.school/xquery/config"      at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
 import module namespace export = "http://www.salamanca.school/xquery/export"      at "xmldb:exist:///db/apps/salamanca/modules/export.xqm";
 import module namespace sutil  = "http://www.salamanca.school/xquery/sutil"       at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";

@@ -21,7 +21,7 @@ declare namespace xhtml         = "http://www.w3.org/1999/xhtml";
 
 import module namespace console = "http://exist-db.org/xquery/console";
 
-import module namespace i18n    = "http://exist-db.org/xquery/i18n"     at "i18n.xqm";
+import module namespace i18n    = "http://exist-db.org/xquery/i18n"     at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
 
 declare default collation "http://www.w3.org/2013/collation/UCA";
 
@@ -94,9 +94,11 @@ declare variable $config:iiifPresentationServer := $config:imageserver || "/iiif
 declare variable $config:svnserver := "";
 
 (: the digilib image service :)
-declare variable $config:digilibServerScaler     := "https://c104-131.cloud.gwdg.de:8443/digilib/Scaler/IIIF/svsal!";
+(:declare variable $config:digilibServerScaler     := "https://c104-131.cloud.gwdg.de:8443/digilib/Scaler/IIIF/svsal!";:)
+declare variable $config:digilibServerScaler     := "https://c099-013.cloud.gwdg.de:8443/digilib/Scaler/IIIF/svsal!";
 (: the digilib manifest service :)
-declare variable $config:digilibServerManifester := "https://c104-131.cloud.gwdg.de:8443/digilib/Manifester/IIIF/svsal!";
+(:declare variable $config:digilibServerManifester := "https://c104-131.cloud.gwdg.de:8443/digilib/Manifester/IIIF/svsal!";:)
+declare variable $config:digilibServerManifester := "https://c099-013.cloud.gwdg.de:8443/digilib/Manifester/IIIF/svsal!";
 
 declare variable $config:urnresolver             := 'http://nbn-resolving.de/urn/resolver.pl?';
 
@@ -157,6 +159,7 @@ declare variable $config:citationLabels :=
         'chapter': map {'full': 'capitulum', 'abbr': 'cap.', 'isCiteRef': true()},
         'colophon': map {'full': 'colophon', 'abbr': 'coloph.', 'isCiteRef': true()},
         'commentary': map {'full': 'commentarius', 'abbr': 'comment.', 'isCiteRef': true()},
+        'conclusion': map {'full': 'conclusio', 'abbr': 'concl.', 'isCiteRef': true()},
         'contained_work': (),
         'contents': map {'full': 'tabula', 'abbr': 'tab.', 'isCiteRef': true()},
         'corrigenda': map {'full': 'corrigenda', 'abbr': 'corr.', 'isCiteRef': true()},

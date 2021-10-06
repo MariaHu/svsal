@@ -9,21 +9,20 @@ Bundling such functions here shall prevent interdependencies between larger and 
 
 module namespace sutil = "http://www.salamanca.school/xquery/sutil";
 
-declare namespace sal           = "http://salamanca.adwmainz.de"; 
-declare namespace tei           = "http://www.tei-c.org/ns/1.0";
+declare namespace sal          = "http://salamanca.adwmainz.de"; 
+declare namespace tei          = "http://www.tei-c.org/ns/1.0";
 
-declare namespace templates     = "http://exist-db.org/xquery/templates";
-declare namespace util          = "http://exist-db.org/xquery/util";
+declare namespace templates    = "http://exist-db.org/xquery/templates";
+declare namespace util         = "http://exist-db.org/xquery/util";
 
-import module namespace console = "http://exist-db.org/xquery/console";
+import module namespace console    = "http://exist-db.org/xquery/console";
 
-import module namespace config  = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace i18n    = "http://exist-db.org/xquery/i18n"           at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
+import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace i18n   = "http://exist-db.org/xquery/i18n"           at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
 
 
 (:
-~ Makes a copy of a node tree, to be used for making copies of subtrees on-the-fly for
-    not having to process the whole document
+~ Makes a copy of a node tree, to be used for making copies of subtrees on-the-fly for not having to process the whole document
     (supposed to increase speed especially where "intersect" statements are applied).
 :)
 declare function sutil:copy($node as element()) as node() {
@@ -78,7 +77,7 @@ declare function sutil:AUTvalidateId($aid as xs:string?) as xs:integer {
 
 declare function sutil:LEMexists($lid as xs:string?) as xs:boolean {
     if ($lid) then
-        boolean(doc($config:tei-meta-root || '/' || 'lemmata-list.xml')//tei:text//tei:bibl/@corresp[lower-case(substring-after(., 'lemma:')) eq lower-case($lid)])
+    boolean(doc($config:tei-meta-root || '/' || 'lemmata-list.xml')//tei:text//tei:bibl/@corresp[lower-case(substring-after(., 'lemma:')) eq lower-case($lid)])
     else false()
 };
 
@@ -187,15 +186,15 @@ declare function sutil:getFragmentID($targetWorkId as xs:string, $targetNodeId a
 
 declare function sutil:getNodetrail($wid as xs:string, $node as element(), $mode as xs:string) {
     switch ($mode)
-    case 'citeID'
-        return doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@n eq $node/@xml:id]/@citeID
-    case 'label'
-        return doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@n eq $node/@xml:id]/@label
-    case 'crumbtrail'
-        return doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@n eq $node/@xml:id]/sal:crumbtrail/node()
-    default
-        return
-            let $debug := if ($config:debug = ("trace", "info")) then
+        case 'citeID'
+            return doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@n eq $node/@xml:id]/@citeID
+        case 'label'
+            return doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@n eq $node/@xml:id]/@label
+        case 'crumbtrail'
+            return doc($config:index-root || '/' || $wid || '_nodeIndex.xml')//sal:node[@n eq $node/@xml:id]/sal:crumbtrail/node()
+        default
+            return
+ let $debug := if ($config:debug = ("trace", "info")) then
                               console:log("[SUTIL] sutil:getNodetrail called with invalid mode.")
                           else ()
             return ""
@@ -292,7 +291,7 @@ declare function sutil:getTeiNodeFromCiteID($workId as xs:string, $citeID as xs:
     - "record" for generic citations in catalogue records 
     - "reading-full" for generic citations in reading view; access date has to be appended elsewhere
     - "reading-passage" for fine-granular citations in reading view, including label - this yields two <span>s, 
-        between the two of which the access date has to be inserted (e.g., by means of JS)
+       between the two of which the access date has to be inserted (e.g., by means of JS)
 :)
 declare function sutil:HTMLmakeCitationReference($wid as xs:string, $fileDesc as element(tei:fileDesc), $mode as xs:string, $node as element()?) as element(span)+ {
     let $author := $fileDesc/tei:titleStmt/tei:author/tei:persName/tei:surname/text()

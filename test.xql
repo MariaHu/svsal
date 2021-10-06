@@ -8,7 +8,7 @@ declare namespace util    = "http://exist-db.org/xquery/util";
 
 import module namespace console    = "http://exist-db.org/xquery/console";
 
-import module namespace config = "http://www.salamanca.school/xquery/config" at "modules/config.xqm";
+import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
 
 declare option output:media-type "text/html";
 declare option output:method "xhtml";

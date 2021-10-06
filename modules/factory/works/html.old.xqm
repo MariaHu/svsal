@@ -18,12 +18,11 @@ declare namespace util             = "http://exist-db.org/xquery/util";
 declare namespace xi               = "http://www.w3.org/2001/XInclude";
 
 import module namespace console    = "http://exist-db.org/xquery/console";
-import module namespace functx     = "http://www.functx.com";
 
-import module namespace config     = "http://www.salamanca.school/xquery/config"         at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace sutil      = "http://www.salamanca.school/xquery/sutil"          at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
-import module namespace index      = "https://www.salamanca.school/factory/works/index"  at "xmldb:exist:///db/apps/salamanca/modules/factory/works/index.xqm";
-import module namespace txt        = "https://www.salamanca.school/factory/works/txt"    at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
+import module namespace config     = "http://www.salamanca.school/xquery/config"        at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace sutil      = "http://www.salamanca.school/xquery/sutil"         at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
+import module namespace index      = "https://www.salamanca.school/factory/works/index" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/index.xqm";
+import module namespace txt        = "https://www.salamanca.school/factory/works/txt"   at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
 import module namespace render-app = "http://www.salamanca.school/xquery/render-app"     at "xmldb:exist:///db/apps/salamanca/modules/render-app.xqm";
 
 
@@ -45,38 +44,24 @@ declare variable $html:basicElemNames := ('p', 'head', 'note', 'item', 'cell', '
 ~ Controller function for creating (and informing about) HTML fragments, pagination lists, and TOCs
 :)
 declare function html:makeHTMLData($tei as element(tei:TEI)) as map(*) {
-    let $wid := string($tei/@xml:id)
-
-    let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Rendering " || $wid || " ...") else ()
-
-    (: First, get fragmentation level requirement :)
-    let $debug := if ($config:debug = ("trace")) then console:log("[HTML] Rendering: Find out required fragmentation depth ...") else ()
+    let $xincludes := $tei//tei:text//xi:include/@href
+    let $work := if (count($xincludes) gt 0) then
+                        util:expand($tei)
+    else
+                        $tei
     let $fragmentationDepth := index:determineFragmentationDepth($tei)
-    let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Rendering: fragmentation level " || $fragmentationDepth || ".") else ()
-
-
-    let $xincludes  := $tei//tei:text//xi:include/@href
-    let $work       := if (count($xincludes) gt 0) then
-                            util:expand($tei)
-                       else
-                            $tei
-    let $texts := $work//tei:text[(@type eq 'work_volume' and sutil:WRKisPublished($wid || '_' || @xml:id)) or @type eq 'work_monograph']
-
-    (: Next, get all relevant nodes :)
-    let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Rendering: Get various sets of nodes ...") else ()
-    let $nodeCandidates := $texts/descendant-or-self::*
-    let $specialNodes   := index:gatherSpecialNodes($nodeCandidates)
-
-    (: Next, get future fragment nodes :)
-    let $targetSet := index:getFragmentNodes($work, $fragmentationDepth, $specialNodes)
-    let $targetSetNodeTypes := distinct-values($targetSet ! (local-name(.)))
-    let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Target set contains " || count($targetSet) || " nodes (to become html fragments) of these types: " || string-join($targetSetNodeTypes, ", ") || ".") else ()
-        
-    let $elements := $texts/(tei:front | tei:body | tei:back)  
-    let $title := sutil:WRKcombined($work, (), $wid)
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Rendering " || string($tei/@xml:id) || " at fragmentation level " || $fragmentationDepth || " ...") else ()
+    
+    let $target-set := index:getFragmentNodes($work, $fragmentationDepth)
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] " || string(count($target-set)) || " elements to be rendered as fragments ...") else ()
+    
+    let $workId := $work/@xml:id
+    let $text := $work//tei:text[@type='work_volume'] | $work//tei:text[@type = 'work_monograph']
+    let $elements := $work//tei:text[@type = 'work_monograph']/(tei:front | tei:body | tei:back)  
+    let $title := sutil:WRKcombined($work, (), $workId)
     
     (: (1) table of contents :)
-    let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Creating ToC file for " || $wid || " ...") else ()
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Creating ToC file for " || $workId || " ...") else ()
     let $toc :=     
         <div id="tableOfConts">
             <ul>
@@ -84,22 +69,22 @@ declare function html:makeHTMLData($tei as element(tei:TEI)) as map(*) {
                     <b>{$title}</b>
                     {
                     if (not($work//tei:text[@type='work_volume'])) then
-                        <span class="jstree-anchor hideMe pull-right">{html:getPagesFromDiv($texts)}</span>
+                        <span class="jstree-anchor hideMe pull-right">{html:getPagesFromDiv($text)}</span>
                     else ()
                     }
                     {
-                    if ($texts[@type='work_volume']) then 
-                        for $a in $texts[@type='work_volume'] return
+                    if ($work//tei:text[@type='work_volume']) then 
+                        for $a in $work//tei:text where $a[@type='work_volume' and sutil:WRKisPublished($workId || '_' || @xml:id)] return
                             <ul>
                                 <li>
                                     <a class="hideMe">
                                         <b><i18n:text key="volume">Volume</i18n:text>{concat(': ', $a/@n/string())}</b>
                                         <span class="jstree-anchor hideMe pull-right">{html:getPagesFromDiv($a)}</span>
                                     </a>
-                                    { html:generateTocFromDiv($a/(tei:front | tei:body | tei:back), $wid, $specialNodes)}
+                                    { html:generateTocFromDiv($a/(tei:front | tei:body | tei:back), $workId)}
                                 </li>
                             </ul>
-                    else html:generateTocFromDiv($elements, $wid, $specialNodes)
+                    else html:generateTocFromDiv($elements, $workId)
                     }
                 </li>
             </ul>
@@ -107,9 +92,9 @@ declare function html:makeHTMLData($tei as element(tei:TEI)) as map(*) {
     
     (: (2) pagination :)
     let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Creating pagination ...") else ()
-    let $pagesDe :=  html:makePagination((), (), $wid, 'de')
-    let $pagesEn :=  html:makePagination((), (), $wid, 'en')
-    let $pagesEs :=  html:makePagination((), (), $wid, 'es')
+    let $pagesDe :=  html:makePagination((), (), $workId, 'de')
+    let $pagesEn :=  html:makePagination((), (), $workId, 'en')
+    let $pagesEs :=  html:makePagination((), (), $workId, 'es')
 
     (: (3) fragments :)
     let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Creating fragments ...") else ()
@@ -117,17 +102,17 @@ declare function html:makeHTMLData($tei as element(tei:TEI)) as map(*) {
     (: TODO: Mysteriously, if you look at top or a similar tool, the following seems to run mainly on one processor core only... :)
     (: and debug feedback for the actual rendering step is missung ... :)
     let $fragments := 
-        for $section at $index in $targetSet
+        for $section at $index in $target-set
             let $debug :=   if (($config:debug = "trace") and ($index eq 1 or $index mod 25 eq 0)) then
                                 console:log("[HTML] HTML rendering: processing fragment no. " || string($index)  || " ...")
                             else ()
             let $prev   :=  
                 if ($index > 1) then
-                    $targetSet[(xs:integer($index) - 1)]
+                    $target-set[(xs:integer($index) - 1)]
                 else ()
             let $next   :=  
-                if ($index < count($targetSet)) then
-                    $targetSet[(xs:integer($index) + 1)]
+                if ($index < count($target-set)) then
+                    $target-set[(xs:integer($index) + 1)]
                 else ()
             let $prevId :=  
                 if ($prev) then
@@ -137,7 +122,8 @@ declare function html:makeHTMLData($tei as element(tei:TEI)) as map(*) {
                 if ($next) then
                     xs:string($next/@xml:id)
                 else ()
-            let $result := html:renderFragment($work, $wid, $section, $index, $fragmentationDepth, $prevId, $nextId, $config:serverdomain, $specialNodes)
+            let $result := html:renderFragment($work, xs:string($workId), $section, $index, $fragmentationDepth, $prevId, $nextId, $config:serverdomain)
+(:                let $result := html:createFragment($workId, $section, $index, $prevId, $nextId):)
             return 
                 map {
                     'index': $index,
@@ -150,14 +136,14 @@ declare function html:makeHTMLData($tei as element(tei:TEI)) as map(*) {
                     'html': $result
                 }
             
-    let            $debug    := if ($config:debug = ("trace", "info")) then console:log("[HTML] Rendering done. Get info about problems (if any) ...") else ()
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Rendering done. Get info about problems (if any) ...") else ()
 
     (: Reporting :)
     
     (: See if there are any leaf elements in our text that are not matched by our rule :)
-    let $missed-elements := $texts//tei:*[count(./ancestor-or-self::tei:*) < $fragmentationDepth][not(*)]
+    let $missed-elements := $work//(tei:front|tei:body|tei:back)//tei:*[count(./ancestor-or-self::tei:*) < $fragmentationDepth][not(*)]
     (: See if any of the elements we did get is lacking an xml:id attribute :)
-    let $unidentified-elements := $targetSet[not(@xml:id)]
+    let $unidentified-elements := $target-set[not(@xml:id)]
 
     let $debug := if ($config:debug = ("trace", "info")) then console:log("[HTML] Done.") else ()
     
@@ -170,19 +156,19 @@ declare function html:makeHTMLData($tei as element(tei:TEI)) as map(*) {
             'fragments': $fragments,
             'missed_elements': $missed-elements,
             'unidentified_elements': $unidentified-elements,
-            'tei_fragment_roots': $targetSet
+            'tei_fragment_roots': $target-set
         }
 };
 
 
-declare function html:renderFragment($work as node(), $wid as xs:string, $target as node(), $targetindex as xs:integer, $fragmentationDepth as xs:integer, $prevId as xs:string?, $nextId as xs:string?, $serverDomain as xs:string?, $specialNodes as map(*)) {
+declare function html:renderFragment($work as node(), $wid as xs:string, $target as node(), $targetindex as xs:integer, $fragmentationDepth as xs:integer, $prevId as xs:string?, $nextId as xs:string?, $serverDomain as xs:string?) {
     let $targetid          := xs:string($target/@xml:id)
 (:
     let $debugOutput   := if ($config:debug = ("trace", "info")) then console:log("  Render Element " || $targetindex || ": " || $targetid || " of " || $wid || "...") else ()
     let $debugOutput   := if ($config:debug = ("trace")) then console:log("  (prevId=" || $prevId || ", nextId=" || $nextId || ", serverDomain=" || $serverDomain || ")") else ()
 :)
 (:    let $html := transform:transform($work, $tei2htmlXslt, $xsl-parameters):)
-    let $fragment := html:createFragment($wid, $target, $targetindex, $prevId, $nextId, $specialNodes)
+    let $fragment := html:createFragment($wid, $target, $targetindex, $prevId, $nextId)
 
     return $fragment
 };
@@ -194,25 +180,24 @@ declare function html:renderFragment($work as node(), $wid as xs:string, $target
 ~ Determines which nodes to make HTML teasers for (subset of //*[index:isIndexNode(.)] excluding low-level elements). 
     Should mostly be used together with html:makeSummaryTitle()
 :)
-declare function html:isCitableWithTeaser($node as node(), $specialNodes as map(*)) as xs:boolean {
+declare function html:isCitableWithTeaser($node as node()) as xs:boolean {
     boolean(
-        not(boolean($node intersect $specialNodes('basicNodes'))) and       (: not(index:isBasicNode($node)) and :)
-        (
-            (boolean($node intersect $specialNodes('structuralNodes')) and $node[self::tei:div or self::tei:text]) or      (: (index:isStructuralNode($node) and $node[self::tei:div or self::tei:text]) or :)
-            (boolean($node intersect $specialNodes('anchorNodes')) )          (: index:isAnchorNode($node) :)
+        not(index:isBasicNode($node)) and
+            (
+            (index:isStructuralNode($node) and $node[self::tei:div or self::tei:text]) or
+            index:isAnchorNode($node)
             (: TODO: lists here? :)
         ) and
-        html:dispatch($node, 'html-title', $specialNodes) (: if there is no title, we won't make a teaser :)
+        html:dispatch($node, 'html-title') (: if there is no title, we won't make a teaser :)
     )
 };
 
 
-declare function html:preparePagination($work as element(tei:TEI), $lang as xs:string?, $fragmentIds as map()?, $specialNodes as map(*)) as element(ul) {
+declare function html:preparePagination($work as element(tei:TEI), $lang as xs:string?, $fragmentIds as map()?) as element(ul) {
     let $workId := $work/@xml:id
     return 
         <ul id="later" class="dropdown-menu scrollable-menu" role="menu" aria-labelledby="dropdownMenu1">{
-(:            for $pb in $work//tei:text//tei:pb[index:isIndexNode(.) and not(@sameAs or @corresp)] return:)
-            for $pb in ($work//tei:text//tei:pb[not(@sameAs or @corresp)] intersect $specialNodes('indexNodes')) return       (: [index:isIndexNode(.) and ] return :)
+            for $pb in $work//tei:text//tei:pb[index:isIndexNode(.) and not(@sameAs or @corresp)] return
                 let $fragment := $fragmentIds($pb/@xml:id/string()) (:$pb/@fragment:)
                 let $url      := 'work.html?wid=' || $workId || '&amp;frag=' || $fragment || '#' || concat('pageNo_', $pb/@n)
                 return 
@@ -224,22 +209,18 @@ declare function html:preparePagination($work as element(tei:TEI), $lang as xs:s
 (:
 ~ Recursively creates a TOC list (of lists...) for a sequence of nodes.
 :)
-declare function html:generateTocFromDiv($nodes as element()*, $wid as xs:string, $specialNodes as map(*)) as element(ul)* {
-(:    for $node in $nodes/(tei:div[@type="work_part"]/tei:div[index:isIndexNode(.)]
+declare function html:generateTocFromDiv($nodes as element()*, $wid as xs:string) as element(ul)* {
+    for $node in $nodes/(tei:div[@type="work_part"]/tei:div[index:isIndexNode(.)]
                          |tei:div[not(@type="work_part")][index:isIndexNode(.)]
                          |*/tei:milestone[@unit ne 'other'][index:isIndexNode(.)]) return
-:)
-    for $node in $nodes/(tei:div[@type="work_part"]/tei:div|tei:div[not(@type="work_part")]|*/tei:milestone[@unit ne 'other'])
-                 intersect $specialNodes('indexNodes')
-             return
         let $citeID := sutil:getNodetrail($wid, $node, 'citeID')        
         let $fragId := $config:idserver || '/texts/' || $wid || ':' || $citeID || '?format=html'
         let $section := $node/@xml:id/string()
         let $i18nKey := 
-            if (index:dispatch($node, 'class', $specialNodes)) then index:dispatch($node, 'class', $specialNodes)
+            if (index:dispatch($node, 'class')) then index:dispatch($node, 'class')
             else 'tei-generic'
         let $label := ('[', <i18n:text key="{$i18nKey}"/>, ']')
-        let $titleString := index:dispatch($node, 'title', $specialNodes)
+        let $titleString := index:dispatch($node, 'title')
         let $titleAtt := '[i18n(' || $i18nKey || ')] ' || $titleString
 (:        let $titleElems := html:makeTOCTitle($node):)
         (: title="{$title}" :)
@@ -250,12 +231,12 @@ declare function html:generateTocFromDiv($nodes as element()*, $wid as xs:string
                         {($label, ' ', $titleString)}
                         <span class="jstree-anchor hideMe pull-right">{html:getPagesFromDiv($node)}</span>
                     </a>
-                    {html:generateTocFromDiv($node, $wid, $specialNodes)}
+                    {html:generateTocFromDiv($node, $wid)}
                 </li>
             </ul>
 };
 
-declare function html:makeTOCTitle($node as node(), $specialNodes as map(*)) as item()* {
+declare function html:makeTOCTitle($node as node()) as item()* {
     let $i18nKey := 
         (: every div or milestone type with a citation label should have an entry in i18n files: :)
         if ($node/self::tei:div) then
@@ -266,7 +247,7 @@ declare function html:makeTOCTitle($node as node(), $specialNodes as map(*)) as 
             else 'tei-generic'
         else ()
     let $divLabel := ('[', <i18n:text key="{$i18nKey}"/>, ']')
-    let $titleString := index:dispatch($node, 'title', $specialNodes)
+    let $titleString := index:dispatch($node, 'title')
     return
         ($divLabel, ' ', $titleString)
 };
@@ -288,7 +269,7 @@ declare function html:getPagesFromDiv($div) {
     such that they can be re-included into a fragment's HTML.
 :)
 (: TODO: currently, this merely creates a "Vol. X" teaser at the beginning of volumes - this means that fragmentation depth cannot go below (front|body|back)/* ! :)
-declare function html:makeAncestorTeasers($fragmentRoot as element(), $specialNodes as map(*)) {
+declare function html:makeAncestorTeasers($fragmentRoot as element()) {
 (:    let $debug := if ($config:debug = ("trace")) then console:log("[HTML] create ancestor teasers for " || local-name($fragmentRoot) || " " || $fragmentRoot/@xml:id/string() || " ...") else ():)
     (: determine whether fragment is first structural element of volume :)
     if ($fragmentRoot[ancestor-or-self::tei:text[@type eq 'work_volume'] 
@@ -298,7 +279,7 @@ declare function html:makeAncestorTeasers($fragmentRoot as element(), $specialNo
             if ($fragmentRoot/ancestor-or-self::tei:text[@type='work_volume']/preceding::tei:text[@type='work_volume']) then 
                 <hr/> 
             else ()
-        let $sumTitle := html:makeSummaryTitle($fragmentRoot/ancestor-or-self::tei:text[@type eq 'work_volume'], $specialNodes)
+        let $sumTitle := html:makeSummaryTitle($fragmentRoot/ancestor-or-self::tei:text[@type eq 'work_volume'])
         return ($delimiter, $sumTitle)
     else ()        
     
@@ -327,15 +308,15 @@ declare function html:makeAncestorTeasers($fragmentRoot as element(), $specialNo
 (:
 ~ Creates a section title, which appears to the left of the main area.
 :)
-declare function html:makeSummaryTitle($node as element(), $specialNodes as map(*)) as element(div) {
-    let $toolbox := html:makeSectionToolbox($node, $specialNodes)
+declare function html:makeSummaryTitle($node as element()) as element(div) {
+    let $toolbox := html:makeSectionToolbox($node)
     let $fullTitle := 
         <span class="section-title-text">{
-            if ($node/self::tei:text[@type='work_volume']) then <b>{html:dispatch($node, 'html-title', $specialNodes)}</b>
-            else html:dispatch($node, 'html-title', $specialNodes)
+            if ($node/self::tei:text[@type='work_volume']) then <b>{html:dispatch($node, 'html-title')}</b>
+            else html:dispatch($node, 'html-title')
         }</span>
     (: make anchors according to the amount of structural ancestors so that JS knows what to highlight: :)
-    let $levels := count($node/ancestor::* intersect $specialNodes('structuralNodes'))  (: [index:isStructuralNode(.)]) :)
+    let $levels := count($node/ancestor::*[index:isStructuralNode(.)])
     let $levelAnchors := for $l in (1 to $levels) return <a style="display:none;" class="div-l-{$l}"/>
     return
         <div class="section-title container" id="{$node/@xml:id}">
@@ -363,17 +344,17 @@ declare function html:makeSummaryTitle($node as element(), $specialNodes as map(
 ~ (currently all tei:note as well as label[@place eq 'margin'];
 ~  head[@place eq 'margin'] are treated as ordinary head)
 :)
-declare function html:makeMarginal($node as element(), $specialNodes as map(*)) as element(div) {
+declare function html:makeMarginal($node as element()) as element(div) {
     let $label := if ($node/@n) then <span class="note-label">{$node/@n || ' '}</span> else ()
     let $content :=
         if ($node/tei:p) then 
-            html:passthru($node, 'html', $specialNodes)
+            html:passthru($node, 'html')
         else
-            <span class="note-paragraph">{html:passthru($node, 'html', $specialNodes)}</span>
+            <span class="note-paragraph">{html:passthru($node, 'html')}</span>
     (: determine string-length of complete note text, so as to see whether note needs to be truncated: :)
     let $noteLength := 
         string-length((if ($label) then $node/@n || ' ' else ()) || normalize-space(replace(string-join(txt:dispatch($node, 'edit'), ''), '\[.*?\]', '')))
-    let $toolbox := html:makeSectionToolbox($node, $specialNodes)
+    let $toolbox := html:makeSectionToolbox($node)
     return
         <div class="marginal container" id="{$node/@xml:id}">
             {$toolbox}
@@ -400,14 +381,14 @@ declare function html:makeMarginal($node as element(), $specialNodes as map(*)) 
 ~ Creates a toolbox including export and link buttons. Should be placed as preceding sibling of the element that
 ~ it refers to for JS (highlighting etc.) to work correctly. 
 :)
-declare function html:makeSectionToolbox($node as element(), $specialNodes as map(*)) as element(div) {
+declare function html:makeSectionToolbox($node as element()) as element(div) {
     let $id := $node/@xml:id/string()
     let $wid := $node/ancestor::tei:TEI/@xml:id
     let $fileDesc := $node/ancestor::tei:TEI/tei:teiHeader/tei:fileDesc
     let $class := 
-        if (boolean($node intersect $specialNodes('marginalNodes'))) then             (: index:isMarginalNode($node)) then :) 
+        if (index:isMarginalNode($node)) then 
             'sal-toolbox-marginal' 
-        else if (html:isCitableWithTeaser($node, $specialNodes)) then
+        else if (html:isCitableWithTeaser($node)) then
             'sal-toolbox-title'
         else 'sal-toolbox'
     let $i18nSuffix := (: Suffix for determining what kind of description to display :) 
@@ -481,7 +462,7 @@ declare function html:makeClassableString($str as xs:string) as xs:string? {
 };
 
 
-declare function html:createFragment($workId as xs:string, $fragmentRoot as element(), $fragmentIndex as xs:integer, $prevId as xs:string?, $nextId as xs:string?, $specialNodes as map(*)) as element(div) {
+declare function html:createFragment($workId as xs:string, $fragmentRoot as element(), $fragmentIndex as xs:integer, $prevId as xs:string?, $nextId as xs:string?) as element(div) {
     let $debug := if ($config:debug = ("trace") and $fragmentIndex mod 25 eq 0) then console:log("[HTML] create fragment for section " || string($fragmentIndex) || " (" || local-name($fragmentRoot) || " " || $fragmentRoot/@xml:id/string() || ") ...") else ()
     return
     (: SvSalPage: main area (id/class page in order to identify page-able content :)
@@ -490,11 +471,11 @@ declare function html:createFragment($workId as xs:string, $fragmentRoot as elem
             <div id="SvSalPages">
                 <div class="SvSalPage">                
                     {
-                    if ($fragmentRoot[not(preceding-sibling::*) and not((ancestor::body|ancestor::back) and preceding::front/*)]) then
-                        html:makeAncestorTeasers($fragmentRoot, $specialNodes)
+                    if ($fragmentRoot[not(preceding-sibling::*) and                        not((ancestor::body|ancestor::back) and preceding::front/*)]) then
+                           html:makeAncestorTeasers($fragmentRoot)
                     else ()    
                     }
-                    {html:dispatch($fragmentRoot, 'html', $specialNodes)}
+                    {html:dispatch($fragmentRoot, 'html')}
                 </div>
             </div>
         </div>
@@ -573,20 +554,20 @@ declare function html:resolveFacsURI($facsTargets as xs:string) as xs:string {
 ~ Transforms a $node into an HTML link anchor (a[@href]), dispatching all its content ((html:dispatch())) and, if required,
     preventing tei:pb from occurring within the link.
 :)
-declare function html:transformToLink($node as element(), $uri as xs:string, $specialNodes as map(*)) {
+declare function html:transformToLink($node as element(), $uri as xs:string) {
     if (not($node/tei:pb)) then
-        <a href="{$uri}" target="_blank">{html:passthru($node, 'html', $specialNodes)}</a>
+        <a href="{$uri}" target="_blank">{html:passthru($node, 'html')}</a>
     else
         (: make an anchor for the preceding part, then render the pb, then "continue" the anchor :)
         (: TODO: ATM, this works only if pb occurs at the child level, and only with the first pb :)
         let $before :=
             <a href="{$uri}" target="_blank">
-                {for $n in $node/tei:pb[1]/preceding-sibling::node() return html:dispatch($n, 'html', $specialNodes)}
+                {for $n in $node/tei:pb[1]/preceding-sibling::node() return html:dispatch($n, 'html')}
             </a>
-        let $break := html:dispatch($node/tei:pb[1], 'html', $specialNodes)
+        let $break := html:dispatch($node/tei:pb[1], 'html')
         let $after :=
             <a href="{$uri}" target="_blank">
-                {for $n in $node/tei:pb[1]/following-sibling::node() return html:dispatch($n, 'html', $specialNodes)}
+                {for $n in $node/tei:pb[1]/following-sibling::node() return html:dispatch($n, 'html')}
             </a>
         return
             ($before, $break, $after)
@@ -597,12 +578,12 @@ declare function html:transformToLink($node as element(), $uri as xs:string, $sp
 (:
 ~ For a node, make a full-blown URI including the citeID of the node
 :)
-declare function html:makeCiteIDURI($node as element()) as xs:string {
+declare function html:makeCiteIDURI($node as element()) as xs:string? {
     let $workId := $node/ancestor::tei:TEI/@xml:id
     let $citeID := sutil:getNodetrail($workId, $node, 'citeID')
     return
         if ($citeID) then $config:idserver || '/texts/' || $workId || ':' || $citeID
-        else ""
+        else ()
 };
 
 
@@ -615,7 +596,7 @@ declare function html:resolveURI($node as element(), $targets as xs:string) as x
     let $facsScheme := 'facs:((W[0-9]+)[A-z0-9.:#_\-]+)'
     let $genericScheme := '(\S+):([A-z0-9.:#_\-]+)'
     return
-        if (starts-with($target, '#') and $currentWork//*[@xml:id eq substring($target, 2, 5)]) then
+        if (starts-with($target, '#') and $currentWork//*[@xml:id eq substring($target, 2)]) then
             (: target is some node within the current work :)
             html:makeCiteIDURI($currentWork//*[@xml:id eq substring($target, 2)])
         else if (matches($target, $workScheme)) then
@@ -645,7 +626,7 @@ declare function html:resolveURI($node as element(), $targets as xs:string) as x
                     for $p in $prefixDef[@ident eq $prefix][matches($value, @matchPattern)] return
                         replace($value, $p/@matchPattern, $p/@replacementPattern)
                 else replace($target, $genericScheme, '$0') (: regex-group(0) :)
-        else    
+        else 
             let $debug := if ($config:debug = ("trace")) then
                 console:log("[HTML] html:resolveURI could not parse uri for node " || $node/@xml:id || ", $targets " || $targets || ".")
             else ()
@@ -664,12 +645,10 @@ declare function html:resolveURI($node as element(), $targets as xs:string) as x
 ~ @param $node : the node to be dispatched
 ~ @param $mode : the mode for which the function shall generate results
 :)
-declare function html:dispatch($node as node(), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:dispatch($node as node(), $mode as xs:string) {
     let $debug := if ($config:debug = ("trace") and $node/self::tei:pb) then
-                    let $facs := substring($node/@facs, string-length($node/@facs)-4)
-                    let $p := if (functx:is-a-number($facs)) then fn:number($facs) else 0 
-                    let $pos :=  $p (: count($node/preceding::tei:pb) + 1 :)
-                    return if ((($pos eq 1) or ($pos mod 20 eq 0)) and $config:debug = "trace") then
+                    let $pos := count($node/preceding::tei:pb) + 1
+                    return if (($pos eq 1 or $pos mod 20 eq 0) and $config:debug = "trace") then
                         console:log("[HTML] dispatching html creation for " || local-name($node) || " " || $node/@xml:id/string() || " ...")
                     else ()
                   else ()
@@ -679,63 +658,63 @@ declare function html:dispatch($node as node(), $mode as xs:string, $specialNode
             case comment()                  return ()
             case processing-instruction()   return ()
 
-            case element(tei:abbr)              return html:abbr($node, $mode, $specialNodes)
-            case element(tei:argument)          return html:argument($node, $mode, $specialNodes)
-            case element(tei:bibl)              return html:bibl($node, $mode, $specialNodes)
-            case element(tei:byline)            return html:byline($node, $mode, $specialNodes)
-            case element(tei:cb)                return html:cb($node, $mode)
-            case element(tei:cell)              return html:cell($node, $mode, $specialNodes)
-            case element(tei:choice)            return html:choice($node, $mode, $specialNodes)
-            case element(tei:corr)              return html:corr($node, $mode, $specialNodes)
-            case element(tei:del)               return html:del($node, $mode, $specialNodes)
-            case element(tei:div)               return html:div($node, $mode, $specialNodes)
-            case element(tei:docAuthor)         return html:docAuthor($node, $mode, $specialNodes)
-            case element(tei:docImprint)        return html:docImprint($node, $mode, $specialNodes)
-            case element(tei:expan)             return html:expan($node, $mode, $specialNodes)
-            case element(tei:figDesc)           return ()
-            case element(tei:figure)            return html:figure($node, $mode)
-            case element(tei:foreign)           return html:foreign($node, $mode, $specialNodes)
-            case element(tei:fw)                return ()
-            case element(tei:g)                 return html:g($node, $mode, $specialNodes)
-            case element(tei:gap)               return html:gap($node, $mode)
-            case element(tei:head)              return html:head($node, $mode, $specialNodes) (: snippets: passthru :)
-            case element(tei:hi)                return html:hi($node, $mode, $specialNodes) 
-            case element(tei:imprimatur)        return html:imprimatur($node, $mode, $specialNodes)
-            case element(tei:item)              return html:item($node, $mode, $specialNodes)
-            case element(tei:l)                 return html:l($node, $mode, $specialNodes)
-            case element(tei:label)             return html:label($node, $mode, $specialNodes)
-            case element(tei:lb)                return html:lb($node, $mode)
-            case element(tei:lg)                return html:lg($node, $mode, $specialNodes)
-            case element(tei:list)              return html:list($node, $mode, $specialNodes)
-            case element(tei:milestone)         return html:milestone($node, $mode, $specialNodes)
-            case element(tei:note)              return html:note($node, $mode, $specialNodes)
-            case element(tei:orgName)           return html:orgName($node, $mode, $specialNodes)
-            case element(tei:orig)              return html:orig($node, $mode, $specialNodes)
-            case element(tei:p)                 return html:p($node, $mode, $specialNodes)
-            case element(tei:pb)                return html:pb($node, $mode, $specialNodes)
-            case element(tei:persName)          return html:persName($node, $mode, $specialNodes)
-            case element(tei:placeName)         return html:placeName($node, $mode, $specialNodes)
-            case element(tei:publisher)         return html:publisher($node, $mode, $specialNodes)
-            case element(tei:pubPlace)          return html:pubPlace($node, $mode, $specialNodes)
-            case element(tei:quote)             return html:quote($node, $mode, $specialNodes)
-            case element(tei:ref)               return html:ref($node, $mode, $specialNodes)
-            case element(tei:reg)               return html:reg($node, $mode, $specialNodes)
-            case element(tei:row)               return html:row($node, $mode, $specialNodes)
-            case element(tei:space)             return html:space($node, $mode)
-            case element(tei:sic)               return html:sic($node, $mode, $specialNodes)
-            case element(tei:signed)            return html:signed($node, $mode, $specialNodes)            
-            case element(tei:soCalled)          return html:soCalled($node, $mode, $specialNodes)
-            case element(tei:supplied)          return html:supplied($node, $mode, $specialNodes)
-            case element(tei:table)             return html:table($node, $mode, $specialNodes)
-            case element(tei:teiHeader)         return ()
-            case element(tei:term)              return render-app:term($node, $mode, ())
-            case element(tei:text)              return html:text($node, $mode, $specialNodes)
-            case element(tei:title)             return html:title($node, $mode, $specialNodes)
-            case element(tei:titlePage)         return html:titlePage($node, $mode, $specialNodes)
-            case element(tei:titlePart)         return html:titlePart($node, $mode, $specialNodes)
-            case element(tei:unclear)           return html:unclear($node, $mode, $specialNodes)
+            case element(tei:abbr)          return html:abbr($node, $mode)
+            case element(tei:argument)      return html:argument($node, $mode)
+            case element(tei:bibl)          return html:bibl($node, $mode)
+            case element(tei:byline)        return html:byline($node, $mode)
+            case element(tei:cb)            return html:cb($node, $mode)
+            case element(tei:cell)          return html:cell($node, $mode)
+            case element(tei:choice)        return html:choice($node, $mode)
+            case element(tei:corr)          return html:corr($node, $mode)
+            case element(tei:del)           return html:del($node, $mode)
+            case element(tei:div)           return html:div($node, $mode)
+            case element(tei:docAuthor)     return html:docAuthor($node, $mode)
+            case element(tei:docImprint)    return html:docImprint($node, $mode)
+            case element(tei:expan)         return html:expan($node, $mode)
+            case element(tei:figDesc)       return ()
+            case element(tei:figure)        return html:figure($node, $mode)
+            case element(tei:foreign)       return html:foreign($node, $mode)
+            case element(tei:fw)            return ()
+            case element(tei:g)             return html:g($node, $mode)
+            case element(tei:gap)           return html:gap($node, $mode)
+            case element(tei:head)          return html:head($node, $mode) (: snippets: passthru :)
+            case element(tei:hi)            return html:hi($node, $mode) 
+            case element(tei:imprimatur)    return html:imprimatur($node, $mode)
+            case element(tei:item)          return html:item($node, $mode)
+            case element(tei:l)             return html:l($node, $mode)
+            case element(tei:label)         return html:label($node, $mode)
+            case element(tei:lb)            return html:lb($node, $mode)
+            case element(tei:lg)            return html:lg($node, $mode)
+            case element(tei:list)          return html:list($node, $mode)
+            case element(tei:milestone)     return html:milestone($node, $mode)
+            case element(tei:note)          return html:note($node, $mode)
+            case element(tei:orgName)       return html:orgName($node, $mode)
+            case element(tei:orig)          return html:orig($node, $mode)
+            case element(tei:p)             return html:p($node, $mode)
+            case element(tei:pb)            return html:pb($node, $mode)
+            case element(tei:persName)      return html:persName($node, $mode)
+            case element(tei:placeName)     return html:placeName($node, $mode)
+            case element(tei:publisher)     return html:publisher($node, $mode)
+            case element(tei:pubPlace)      return html:pubPlace($node, $mode)
+            case element(tei:quote)         return html:quote($node, $mode)
+            case element(tei:ref)           return html:ref($node, $mode) 
+            case element(tei:reg)           return html:reg($node, $mode)
+            case element(tei:row)           return html:row($node, $mode)
+            case element(tei:space)         return html:space($node, $mode)
+            case element(tei:sic)           return html:sic($node, $mode)
+            case element(tei:signed)        return html:signed($node, $mode) 
+            case element(tei:soCalled)      return html:soCalled($node, $mode)
+            case element(tei:supplied)      return html:supplied($node, $mode)
+            case element(tei:table)         return html:table($node, $mode)
+            case element(tei:teiHeader)     return ()
+            case element(tei:term)          return render-app:term($node, $mode, ())
+            case element(tei:text)          return html:text($node, $mode) 
+            case element(tei:title)         return html:title($node, $mode)
+            case element(tei:titlePage)     return html:titlePage($node, $mode)
+            case element(tei:titlePart)     return html:titlePart($node, $mode)
+            case element(tei:unclear)       return html:unclear($node, $mode)
 
-            default return html:passthru($node, $mode, $specialNodes)
+            default return html:passthru($node, $mode)
     (: for fine-grained debugging: :)
     (: let $debug := 
         if (index:isIndexNode($node)) then 
@@ -744,15 +723,15 @@ declare function html:dispatch($node as node(), $mode as xs:string, $specialNode
     :)
     return
         if ($mode eq 'html') then
-            if (html:isCitableWithTeaser($node, $specialNodes)) then
+            if (html:isCitableWithTeaser($node)) then
 (:                let $debug := if ($config:debug = ("trace")) then console:log("[HTML] create summary title for " || local-name($node) || " " || $node/@xml:id/string() || " ...") else ():)
-                let $citationAnchor := html:makeSummaryTitle($node, $specialNodes)
+                let $citationAnchor := html:makeSummaryTitle($node)
                 return ($citationAnchor, $rendering)
-            else if (boolean($node intersect $specialNodes('basicNodes'))) then  (: index:isBasicNode($node)) then :) 
+            else if (index:isBasicNode($node)) then 
                 (: toolboxes need to be on the sibling axis with the text body they refer to... :)
-                if (boolean($node intersect $specialNodes('marginalNodes'))   (: index:isMarginalNode($node) :) 
+                if (index:isMarginalNode($node) 
                     or $node/self::tei:head 
-                    or $node/self::tei:argument (: no toolboxes for 'heading' elements such as head and argument :)
+                    or $node/self::tei:argument  (: no toolboxes for 'heading' elements such as head and argument :)
                     or $node/self::tei:titlePage (: toolbox is produced in html:titlePage :)
                     or $node/self::tei:p[ancestor::tei:list] (: we do not make toolboxes for p within list :)
                     or $node[ancestor::tei:list and ancestor::tei:div[@type eq 'contents']] (: TOC list elements do not need to be citable :)
@@ -761,7 +740,7 @@ declare function html:dispatch($node as node(), $mode as xs:string, $specialNode
                     $rendering
                 else 
 (:                    let $debug := if ($config:debug = ("trace")) then console:log("[HTML] make section toolbox for " || local-name($node) || " " || $node/@xml:id/string() || " ...") else ():)
-                    let $toolbox :=html:makeSectionToolbox($node, $specialNodes)
+                    let $toolbox :=html:makeSectionToolbox($node)
                     return
                         <div class="hauptText">
                             {$toolbox}
@@ -775,12 +754,12 @@ declare function html:dispatch($node as node(), $mode as xs:string, $specialNode
 
 (: ####++++ Element functions (ordered alphabetically) ++++#### :)
 
-declare function html:passthru($nodes as node()*, $mode as xs:string, $specialNodes as map(*)) as item()* {
-    $nodes/node() ! html:dispatch(., $mode, $specialNodes)
+declare function html:passthru($nodes as node()*, $mode as xs:string) as item()* {
+    $nodes/node() ! html:dispatch(., $mode)
 };
 
 (: FIXME: In the following, the #anchor does not take account of html partitioning of works. Change this to use semantic section id's. :)
-declare function html:head($node as element(tei:head), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:head($node as element(tei:head), $mode as xs:string) {
     switch($mode)
         case 'html-title' return
             normalize-space(replace(string-join(txt:dispatch($node, 'edit')), '\[.*?\]', ''))
@@ -791,27 +770,27 @@ declare function html:head($node as element(tei:head), $mode as xs:string, $spec
                 () 
             (: within notes: :)
             else if ($node/parent::tei:lg) then 
-                <h5 class="poem-head">{html:passthru($node, $mode, $specialNodes)}</h5>
+                <h5 class="poem-head">{html:passthru($node, $mode)}</h5>
             (: usual headings: :)
             else 
 (:                let $toolbox := html:makeSectionToolbox($node)
                 return:)
                 <h3>
-                    <span class="heading-text">{html:passthru($node, $mode, $specialNodes)}</span>
+                    <span class="heading-text">{html:passthru($node, $mode)}</span>
                 </h3>
 
         default return 
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
 (: FIXME: In the following, work mode functionality has to be added - also paying attention to intervening pagebreak marginal divs :)
-declare function html:term($node as element(tei:term), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:term($node as element(tei:term), $mode as xs:string) {
     switch($mode)
         case 'html' return
-            html:name($node, $mode, $specialNodes)
+            html:name($node, $mode)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
 (: TODO - Html:
@@ -820,48 +799,48 @@ declare function html:term($node as element(tei:term), $mode as xs:string, $spec
     * teasers: break text at word boundaries
 :)
 
-declare function html:abbr($node as element(tei:abbr), $mode as xs:string, $specialNodes as map(*)) {
-        html:origElem($node, $mode, $specialNodes)
+declare function html:abbr($node as element(tei:abbr), $mode) {
+        html:origElem($node, $mode)
 };
 
-declare function html:argument($node as element(tei:argument), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:argument($node as element(tei:argument), $mode as xs:string) {
     switch($mode)
         case 'html' return
-            if (boolean ($node intersect $specialNodes('basicNodes'))) then        (: index:isBasicNode($node)) then :)
+            if (index:isBasicNode($node)) then
                 <div class="hauptText">
                     <div class="argument">
-                        {html:passthru($node, $mode, $specialNodes)}
+                        {html:passthru($node, $mode)}
                     </div>
                 </div>
             else
                 <div class="argument">
-                    {html:passthru($node, $mode, $specialNodes)}
+                    {html:passthru($node, $mode)}
                 </div>
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:bibl($node as element(tei:bibl), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:bibl($node as element(tei:bibl), $mode as xs:string) {
     switch($mode)
         case 'html' return
             if ($node/@sortKey) then 
-                <span class="{local-name($node) || ' hi_', html:makeClassableString($node/@sortKey)}">{html:passthru($node, $mode, $specialNodes)}</span>
-            else <span>{html:passthru($node, $mode, $specialNodes)}</span>
+                <span class="{local-name($node) || ' hi_', html:makeClassableString($node/@sortKey)}">{html:passthru($node, $mode)}</span>
+            else <span>{html:passthru($node, $mode)}</span>
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:byline($node as element(tei:byline), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:byline($node as element(tei:byline), $mode as xs:string) {
     switch($mode)
         case 'html' return
             <span class="tp-paragraph">
-                {html:passthru($node, $mode, $specialNodes)}
+                {html:passthru($node, $mode)}
             </span>
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
 declare function html:cb($node as element(tei:cb), $mode as xs:string) {
@@ -874,88 +853,88 @@ declare function html:cb($node as element(tei:cb), $mode as xs:string) {
         default return () (: some sophisticated function to insert a pipe and a pagenumber div in the margin :)
 };
 
-declare function html:cell($node as element(tei:cell), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:cell($node as element(tei:cell), $mode) {
     switch($mode)
         case 'html' return 
             if ($node/@role eq 'label') then 
-                <td class="table-label">{html:passthru($node, $mode, $specialNodes)}</td>
-            else <td>{html:passthru($node, $mode, $specialNodes)}</td>
+                <td class="table-label">{html:passthru($node, $mode)}</td>
+            else <td>{html:passthru($node, $mode)}</td>
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:choice($node as element(tei:choice), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:choice($node as element(tei:choice), $mode as xs:string) {
     (: HTML: Editorial interventions: Don't hide original stuff where we have no modern alternative, otherwise
       put it in an "orignal" class span which we make invisible by default.
       Put our own edits in spans of class "edited" and add another class to indicate what type of edit has happened :)
-    html:passthru($node, $mode, $specialNodes)
+    html:passthru($node, $mode)
 };
 
-declare function html:corr($node as element(tei:corr), $mode as xs:string, $specialNodes as map(*)) {
-    html:editElem($node, $mode, $specialNodes)
+declare function html:corr($node as element(tei:corr), $mode) {
+    html:editElem($node, $mode)
 };
 
-declare function html:del($node as element(tei:del), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:del($node as element(tei:del), $mode as xs:string) {
     switch($mode)
         case 'html' return
             if ($node/tei:supplied) then
-                html:passthru($node, $mode, $specialNodes)
+                html:passthru($node, $mode)
             else error(xs:QName('html:del'), 'Unexpected content in tei:del')
 
         default return 
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:div($node as element(tei:div), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:div($node as element(tei:div), $mode as xs:string) {
     switch($mode)
         case 'html-title' return
             if (not($node/@n and not(matches($node/@n, '^[0-9\[\]]+$'))) and $node/(tei:head|tei:label)) then
                 (: for expanded titles, we need the full version, not just the teaser :)
                 normalize-space(replace(string-join(txt:dispatch(($node/(tei:head|tei:label))[1], 'edit'), ''), '\[.*?\]', ''))
-            else if (index:div($node, 'title', $specialNodes)) then replace(index:div($node, 'title', $specialNodes), '"', '')
-            else <i18n:text key="{index:div($node, 'class', $specialNodes)}"></i18n:text> (: if everything fails, simply use the label (such as 'Preface') :)
+            else if (index:div($node, 'title')) then replace(index:div($node, 'title'), '"', '')
+            else <i18n:text key="{index:div($node, 'class')}"></i18n:text> (: if everything fails, simply use the label (such as 'Preface') :)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:docAuthor($node as element(tei:docAuthor), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:docAuthor($node as element(tei:docAuthor), $mode as xs:string) {
     switch($mode)
         case 'html' return
-            html:name($node, $mode, $specialNodes)
+            html:name($node, $mode)
         default return 
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:docImprint($node as element(tei:docImprint), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:docImprint($node as element(tei:docImprint), $mode as xs:string) {
     switch($mode)
         case 'html' return
             <span class="tp-paragraph">
-                {html:passthru($node, $mode, $specialNodes)}
+                {html:passthru($node, $mode)}
             </span>
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:editElem($node as element(), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:editElem($node as element(), $mode as xs:string) {
     switch($mode)
         case 'html' return
             if ($node/parent::tei:choice) then
                 let $origString := string-join(txt:dispatch($node/parent::tei:choice/(tei:abbr|tei:orig|tei:sic), 'orig'), '')
                 return
                     <span class="messengers edited {local-name($node)}" title="{$origString}">
-                        {string-join(html:passthru($node, $mode, $specialNodes), '')}
+                        {string-join(html:passthru($node, $mode), '')}
                     </span>
-            else html:passthru($node, $mode, $specialNodes)
+            else html:passthru($node, $mode)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:expan($node as element(tei:expan), $mode as xs:string, $specialNodes as map(*)) {
-    html:editElem($node, $mode, $specialNodes)
+declare function html:expan($node as element(tei:expan), $mode) {
+    html:editElem($node, $mode)
 };
 
 declare function html:figure($node as element(tei:figure), $mode as xs:string) {
@@ -968,16 +947,16 @@ declare function html:figure($node as element(tei:figure), $mode as xs:string) {
         default return ()
 };
 
-declare function html:foreign($node as element(tei:foreign), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:foreign($node as element(tei:foreign), $mode as xs:string) {
     switch($mode)
         case 'html' return
-            <span class="foreign-lang">{html:passthru($node, $mode, $specialNodes)}</span>
+            <span class="foreign-lang">{html:passthru($node, $mode)}</span>
 
         default return 
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:g($node as element(tei:g), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:g($node as element(tei:g), $mode as xs:string) {
     switch($mode)
         case 'html' return
             let $thisString := 
@@ -986,10 +965,10 @@ declare function html:g($node as element(tei:g), $mode as xs:string, $specialNod
                 else error(xs:QName('html:g'), 'Found tei:g without text content') (: ensure correct character markup :)
             let $charCode :=                                                       (: make sure there is something to parse :)
                 if (substring($node/@ref,2)) then
-                    lower-case(substring($node/@ref, 2))
+                    substring($node/@ref,2)
                 else
                     error(xs:QName('html:g'), "g/@ref is invalid, there is no code. g's parent: ", serialize($node/parent::*))
-            let $char := $config:tei-specialchars/tei:char[lower-case(@xml:id) eq $charCode]
+            let $char := $config:tei-specialchars/tei:char[@xml:id eq $charCode]
             let $test :=                                                           (: make sure that the char reference is correct :)
                 if (empty($char)) then 
                     error(xs:QName('html:g'), concat('g/@ref is invalid, the char code does not exist: ', $charCode))
@@ -1032,10 +1011,10 @@ declare function html:g($node as element(tei:g), $mode as xs:string, $specialNod
                                 <span class="edited glyph simple-char" title="{$originalGlyph}">{$standardizedGlyph}</span>)
                         else 
                             (: all other simple characters :)
-                            html:passthru($node, $mode, $specialNodes)
+                            html:passthru($node, $mode)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
 declare function html:gap($node as element(tei:gap), $mode as xs:string) {
@@ -1047,7 +1026,7 @@ declare function html:gap($node as element(tei:gap), $mode as xs:string) {
         default return ()
 };
 
-declare function html:hi($node as element(tei:hi), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:hi($node as element(tei:hi), $mode as xs:string) {
     switch($mode)
         case 'html' return
             let $styles := distinct-values(tokenize($node/@rendition, ' '))
@@ -1081,50 +1060,50 @@ declare function html:hi($node as element(tei:hi), $mode as xs:string, $specialN
                 element {'span'} {
                     if (string-join($cssStyles, ' ')) then attribute {'style'} {string-join($cssStyles, ' ')} else (),
                     if (string-join($classnames, ' ')) then attribute {'class'} {string-join($classnames, ' ')} else (),
-                    html:passthru($node, $mode, $specialNodes)
+                    html:passthru($node, $mode)
                 }
 
         default return 
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:imprimatur($node as element(tei:imprimatur), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:imprimatur($node as element(tei:imprimatur), $mode as xs:string) {
     switch($mode)
         case 'html' return
             <span class="tp-paragraph">
-                {html:passthru($node, $mode, $specialNodes)}
+                {html:passthru($node, $mode)}
             </span>
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:item($node as element(tei:item), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:item($node as element(tei:item), $mode as xs:string) {
     switch($mode)
         case 'html-title' return
             if (not($node/parent::tei:list/@type='dict' and $node//tei:term[1][@key])
                 and not($node/@n and not(matches($node/@n, '^[0-9\[\]]+$')))
                 and $node/(tei:head|tei:label)) 
                 then normalize-space(replace(string-join(txt:dispatch(($node/(tei:head|tei:label))[1], 'edit'), ''),'\[.*?\]', ''))
-            else replace(index:dispatch($node, 'title', $specialNodes), '"', '')
+            else replace(index:dispatch($node, 'title'), '"', '')
 
         case 'html' return
             (: tei:item should be handled exclusively in html:list :)
             error()
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:l($node as element(tei:l), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:l($node as element(tei:l), $mode as xs:string) {
     switch($mode)
         case 'html' return
-            (html:passthru($node, $mode, $specialNodes),<br/>)
+            (html:passthru($node, $mode),<br/>)
 
-        default return html:passthru($node, $mode, $specialNodes)
+        default return html:passthru($node, $mode)
 };
 
-declare function html:label($node as element(tei:label), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:label($node as element(tei:label), $mode as xs:string) {
     switch($mode)
         case 'html-title' return
             normalize-space(replace(string-join(txt:dispatch($node, 'edit')), '\[.*?\]', ''))
@@ -1132,15 +1111,15 @@ declare function html:label($node as element(tei:label), $mode as xs:string, $sp
         case 'html' return
             switch($node/@place)
                 case 'margin' return
-                    html:makeMarginal($node, $specialNodes)
+                    html:makeMarginal($node)
                 case 'inline' return
                     <span class="label-inline">
-                        {html:passthru($node, $mode, $specialNodes)}
+                        {html:passthru($node, $mode)}
                     </span>
-                default return html:passthru($node, $mode, $specialNodes)
+                default return html:passthru($node, $mode)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
 declare function html:lb($node as element(tei:lb), $mode as xs:string) {
@@ -1152,12 +1131,12 @@ declare function html:lb($node as element(tei:lb), $mode as xs:string) {
         default return () 
 };
 
-declare function html:list($node as element(tei:list), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:list($node as element(tei:list), $mode as xs:string) {
     switch($mode)
         case 'html-title' return
             if (not($node/@n and not(matches($node/@n, '^[0-9\[\]]+$'))) and $node/(tei:head|tei:label)) then
                 normalize-space(replace(string-join(txt:dispatch(($node/(tei:head|tei:label))[1], 'edit')), '\[.*?\]', ''))
-            else replace(index:dispatch($node, 'title', $specialNodes), '"', '')
+            else replace(index:dispatch($node, 'title'), '"', '')
 
         case 'html' return
             (: available list types: "dict", "ordered", "simple", "bulleted", "gloss", "index", or "summaries" :)
@@ -1167,44 +1146,44 @@ declare function html:list($node as element(tei:list), $mode as xs:string, $spec
                 (: tei:item are actually handled here, not in html:item, due to the tight coupling of their layout to tei:list :)
                 case 'ordered' return (: enumerated/ordered list :)
                     <div id="{$node/@xml:id}">
-                        {for $head in $node/tei:head return <h4>{html:passthru($head, $mode, $specialNodes)}</h4>}
+                        {for $head in $node/tei:head return <h4>{html:passthru($head, $mode)}</h4>}
                         {
                         (: in ordered lists, we outsource non-item elements before items (such as argument, p, ...) to a non-ordered, non-bulleted list :)
                         if ($node/*[not(self::tei:head or self::tei:item) and not(preceding-sibling::tei:item)]) then
                             <ul style="list-style: none;">
                                 {
                                 for $child in $node/*[not(self::tei:head or self::tei:item) and not(preceding-sibling::tei:item)] return
-                                    <li>{html:passthru($child, $mode, $specialNodes)}</li>
+                                    <li>{html:passthru($child, $mode)}</li>
                                 }    
                             </ul>
                         else ()
                         }
                         <ol>
                             {for $child in $node/*[self::tei:item or preceding-sibling::tei:item] return 
-                                <li>{html:passthru($child, $mode, $specialNodes)}</li>
+                                <li>{html:passthru($child, $mode)}</li>
                             }
                         </ol>
                     </div>
                 case 'simple' return (: make no list in html terms at all :)
                     <div id="{$node/@xml:id}">
-                        {for $head in $node/tei:head return <h4 class="inlist-head">{html:passthru($head, $mode, $specialNodes)}</h4>}
+                        {for $head in $node/tei:head return <h4 class="inlist-head">{html:passthru($head, $mode)}</h4>}
                         {for $child in $node/*[not(self::tei:head)] return
-                            if ($child//list) then html:passthru($child, $mode, $specialNodes)
+                            if ($child//list) then html:passthru($child, $mode)
                             else if (not($child/self::tei:item)) then (: argument, p, etc. :)
-                                <div>{html:passthru($child, $mode, $specialNodes)}</div>
-                            else (' ', <span class="inline-item">{html:passthru($child, $mode, $specialNodes)}</span>, ' ')}
+                                <div>{html:passthru($child, $mode)}</div>
+                            else (' ', <span class="inline-item">{html:passthru($child, $mode)}</span>, ' ')}
                     </div>
                 case 'index'
                 case 'summaries' return (: unordered list :)
                     let $content := 
                         <div class="list-index" id="{$node/@xml:id}">
-                            {for $head in $node/tei:head return <h4 class="list-index-head">{html:passthru($head, $mode, $specialNodes)}</h4>}
+                            {for $head in $node/tei:head return <h4 class="list-index-head">{html:passthru($head, $mode)}</h4>}
                             <ul style="list-style-type:circle;">
                                 {for $child in $node/*[not(self::tei:head)] return 
                                     if (not($child/self::tei:item)) then (: argument, p, etc. :)
-                                        <li class="list-paragraph">{html:passthru($child, $mode, $specialNodes)}</li>
+                                        <li class="list-paragraph">{html:passthru($child, $mode)}</li>
                                     else
-                                        <li class="list-index-item">{html:passthru($child, $mode, $specialNodes)}</li>}
+                                        <li class="list-index-item">{html:passthru($child, $mode)}</li>}
                             </ul>
                         </div>
                     return
@@ -1215,34 +1194,34 @@ declare function html:list($node as element(tei:list), $mode as xs:string, $spec
                 default return (: e.g., 'bulleted' :)
                     (: put an unordered list (and captions) in a figure environment (why?) of class @type :)
                     <div class="list-default" id="{$node/@xml:id}">
-                        {for $head in $node/tei:head return <h4 class="list-default-head">{html:passthru($head, $mode, $specialNodes)}</h4>}
+                        {for $head in $node/tei:head return <h4 class="list-default-head">{html:passthru($head, $mode)}</h4>}
                         <ul style="list-style-type:circle;">
                              {for $child in $node/*[not(self::tei:head)] return 
                                   if (not($child/self::tei:item)) then (: argument, p, etc. :)
-                                      <li class="list-paragraph">{html:passthru($child, $mode, $specialNodes)}</li>
+                                      <li class="list-paragraph">{html:passthru($child, $mode)}</li>
                                   else
-                                      <li class="list-default-item">{html:passthru($child, $mode, $specialNodes)}</li>}
+                                      <li class="list-default-item">{html:passthru($child, $mode)}</li>}
                         </ul>
                     </div>
 
         default return
-            ($config:nl, html:passthru($node, $mode, $specialNodes), $config:nl)
+            ($config:nl, html:passthru($node, $mode), $config:nl)
 };
 
-declare function html:lg($node as element(tei:lg), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:lg($node as element(tei:lg), $mode as xs:string) {
     switch($mode)
         case 'html' return
-            <span class="poem">{html:passthru($node, $mode, $specialNodes)}</span>
+            <span class="poem">{html:passthru($node, $mode)}</span>
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:milestone($node as element(tei:milestone), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:milestone($node as element(tei:milestone), $mode as xs:string) {
     switch($mode)
         (: TODO: bring i18n labels somehow into html-title... :)
         case 'html-title' return
-            replace(index:milestone($node, 'title', $specialNodes), '"', '')
+            replace(index:milestone($node, 'title'), '"', '')
 
         case 'html' return
             if ($node/@rendition eq '#dagger') then <sup>†</sup> else '*'
@@ -1250,7 +1229,7 @@ declare function html:milestone($node as element(tei:milestone), $mode as xs:str
         default return () (: also for snippets-orig, snippets-edit :)
 };
 
-declare function html:name($node as element(*), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:name($node as element(*), $mode as xs:string) {
     switch($mode)
         case 'html' return
             let $hiliteName := if ($node/@ref) then 'hi_' || html:makeClassableString((tokenize($node/@ref, ' '))[1]) else ()
@@ -1261,7 +1240,7 @@ declare function html:name($node as element(*), $mode as xs:string, $specialNode
             return 
                 (: as long as any link would lead nowhere, omit linking and simply grasp the content: :)
                 <span class="{normalize-space(string-join((local-name($node),$hiliteName,$dictLemma), ' '))}">
-                    {html:passthru($node, $mode, $specialNodes)}
+                    {html:passthru($node, $mode)}
                 </span>
                 (: as soon as links have actual targets, execute something like the following: :)
                 (:let $resolvedURI := html:resolveURI($node, @ref)
@@ -1303,78 +1282,78 @@ declare function html:name($node as element(*), $mode as xs:string, $specialNode
                 :)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:note($node as element(tei:note), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:note($node as element(tei:note), $mode as xs:string) {
     switch($mode)
         case 'html-title' return ()
 
         case 'html' return
-            html:makeMarginal($node, $specialNodes)
+            html:makeMarginal($node)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:orgName($node as element(tei:orgName), $mode as xs:string, $specialNodes as map(*)) {
-    html:name($node, $mode, $specialNodes)
+declare function html:orgName($node as element(tei:orgName), $mode as xs:string) {
+    html:name($node, $mode)
 };
 
-declare function html:orig($node as element(tei:orig), $mode as xs:string, $specialNodes as map(*)) {
-    html:origElem($node, $mode, $specialNodes)
+declare function html:orig($node as element(tei:orig), $mode) {
+    html:origElem($node, $mode)
 };
 
-declare function html:origElem($node as element(), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:origElem($node as element(), $mode as xs:string) {
     switch($mode)
         case 'html' return 
             if ($node/parent::tei:choice) then
                 let $editString := string-join(txt:dispatch($node/parent::tei:choice/(tei:expan|tei:reg|tei:corr), 'edit'), '')
                 return
                     <span class="original {local-name($node)} unsichtbar" title="{$editString}">
-                        {string-join(html:passthru($node, $mode, $specialNodes), '')}
+                        {string-join(html:passthru($node, $mode), '')}
                     </span>
             else 
-                html:passthru($node, $mode, $specialNodes)
+                html:passthru($node, $mode)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:p($node as element(tei:p), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:p($node as element(tei:p), $mode as xs:string) {
     switch($mode)
         case 'html-title' return
             normalize-space(
-                index:makeTeaserString($node, 'edit', $specialNodes)
+                index:makeTeaserString($node, 'edit')
             )
 
         case 'html' return
             (: special cases :)
             if ($node/ancestor::tei:note) then
                 <span class="note-paragraph">
-                    {html:passthru($node, $mode, $specialNodes)}
+                    {html:passthru($node, $mode)}
                 </span>
             else if ($node/ancestor::tei:item) then
                 <span class="item-paragraph">
-                    {html:passthru($node, $mode, $specialNodes)}
+                    {html:passthru($node, $mode)}
                 </span>
             else if ($node/ancestor::tei:titlePage) then
                 <span class="tp-paragraph">
-                    {html:passthru($node, $mode, $specialNodes)}
+                    {html:passthru($node, $mode)}
                 </span>
             (: main text: :)
             else if ($node/ancestor::item[not(ancestor::list/@type = ('dict', 'index'))]) then
                 <p id="{$node/@xml:id}">
-                    {html:passthru($node, $mode, $specialNodes)}
+                    {html:passthru($node, $mode)}
                 </p>
             else
-                html:passthru($node, $mode, $specialNodes)
+                html:passthru($node, $mode)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:pb($node as element(tei:pb), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:pb($node as element(tei:pb), $mode as xs:string) {
     switch($mode)
         case 'html-title' return
             normalize-space(
@@ -1392,7 +1371,7 @@ declare function html:pb($node as element(tei:pb), $mode as xs:string, $specialN
             )
 
         case 'html' return
-            if (boolean($node intersect $specialNodes('indexNodes'))) then                (: index:isIndexNode($node)) then :) 
+            if (index:isIndexNode($node)) then 
                 let $inlineBreak :=
                     if ($node[@type eq 'blank']) then (: blank pages - make a typographic line break :)
                         <br/>
@@ -1413,7 +1392,7 @@ declare function html:pb($node as element(tei:pb), $mode as xs:string, $specialN
                                    class="pageNo messengers">
                                     <i class="fas fa-book-open facs-icon"/>
                                     {' '}
-                                        {html:pb($node, 'html-title', $specialNodes)}
+                                        {html:pb($node, 'html-title')}
                                 </a>
                             </div>
                     else ()
@@ -1428,108 +1407,108 @@ declare function html:pb($node as element(tei:pb), $mode as xs:string, $specialN
         default return () (: some sophisticated function to insert a pipe and a pagenumber div in the margin :)
 };
 
-declare function html:persName($node as element(tei:persName), $mode as xs:string, $specialNodes as map(*)) {
-    html:name($node, $mode, $specialNodes)
+declare function html:persName($node as element(tei:persName), $mode as xs:string) {
+    html:name($node, $mode)
 };
 
-declare function html:placeName($node as element(tei:placeName), $mode as xs:string, $specialNodes as map(*)) {
-    html:name($node, $mode, $specialNodes)
+declare function html:placeName($node as element(tei:placeName), $mode as xs:string) {
+    html:name($node, $mode)
 };
 
 (: Same as html:persName() :)
-declare function html:publisher($node as element(tei:publisher), $mode as xs:string, $specialNodes as map(*)) {
-    html:name($node, $mode, $specialNodes)
+declare function html:publisher($node as element(tei:publisher), $mode as xs:string) {
+    html:name($node, $mode)
 };
 
 (: Same as html:placeName() :)
-declare function html:pubPlace($node as element(tei:pubPlace), $mode as xs:string, $specialNodes as map(*)) {
-    html:name($node, $mode, $specialNodes)
+declare function html:pubPlace($node as element(tei:pubPlace), $mode as xs:string) {
+    html:name($node, $mode)
 };
 
-declare function html:quote($node as element(tei:quote), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:quote($node as element(tei:quote), $mode as xs:string) {
     switch($mode)
         case 'html' return
             (:<span class="quote">
-                {:)html:passthru($node, $mode, $specialNodes)(:}
+                {:)html:passthru($node, $mode)(:}
             </span>:)
             (: how to deal with longer quotes, spanning several paragraphs or even divs? (possible solution: anchors) :)
 
         default return
-            ('"', html:passthru($node, $mode, $specialNodes), '"')
+            ('"', html:passthru($node, $mode), '"')
 };
 
-declare function html:ref($node as element(tei:ref), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:ref($node as element(tei:ref), $mode as xs:string) {
     switch($mode)
         case 'html' return
             if ($node/@type eq 'note-anchor') then
-                "" (: omit note references :)
+                () (: omit note references :)
             else if ($node/@target) then
                 let $resolvedUri := html:resolveURI($node, $node/@target) (: TODO: verify that this works :)
                 let $debug := if ($config:debug = ("trace") and $resolvedUri = "") then
                     console:log("[HTML] html:ref did not get a uri for " || $node/@target || ".")
                 else ()
-                return html:transformToLink($node, $resolvedUri, $specialNodes)
-            else html:passthru($node, $mode, $specialNodes)
+                return html:transformToLink($node, $resolvedUri)
+            else html:passthru($node, $mode)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:reg($node as element(tei:reg), $mode as xs:string, $specialNodes as map(*)) {
-    html:editElem($node, $mode, $specialNodes)
+declare function html:reg($node as element(tei:reg), $mode) {
+    html:editElem($node, $mode)
 };
 
-declare function html:row($node as element(tei:row), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:row($node as element(tei:row), $mode) {
     switch($mode)
         case 'html' return 
-            <tr>{html:passthru($node, $mode, $specialNodes)}</tr>
+            <tr>{html:passthru($node, $mode)}</tr>
 
         default return
-            html:passthru($node, $mode,$specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:sic($node as element(tei:sic), $mode as xs:string, $specialNodes as map(*)) {
-    html:origElem($node, $mode, $specialNodes)
+declare function html:sic($node as element(tei:sic), $mode) {
+    html:origElem($node, $mode)
 };
 
-declare function html:signed($node as element(tei:signed), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:signed($node as element(tei:signed), $mode as xs:string) {
     switch($mode)
         case 'html' return
             <div class="signed">
-                {html:passthru($node, $mode, $specialNodes)}
+                {html:passthru($node, $mode)}
             </div>
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:soCalled($node as element(tei:soCalled), $mode as xs:string, $specialNodes as map(*)) {
-    ("'", html:passthru($node, $mode, $specialNodes), "'")
+declare function html:soCalled($node as element(tei:soCalled), $mode as xs:string) {
+    ("'", html:passthru($node, $mode), "'")
 };
 
 declare function html:space($node as element(tei:space), $mode as xs:string) {
     if ($node/@dim eq 'horizontal' or @rendition eq '#h-gap') then ' ' else ()
 };
 
-declare function html:supplied($node as element(tei:supplied), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:supplied($node as element(tei:supplied), $mode as xs:string) {
     switch($mode)
         case 'html' return
-            (<span class="original unsichtbar" title="{string($node)}">{'[' || string-join(html:passthru($node,$mode, $specialNodes)) || ']'}</span>,
-            <span class="edited" title="{concat('[', string($node), ']')}">{html:passthru($node,$mode, $specialNodes)}</span>)
+            (<span class="original unsichtbar" title="{string($node)}">{'[' || string-join(html:passthru($node,$mode)) || ']'}</span>,
+            <span class="edited" title="{concat('[', string($node), ']')}">{html:passthru($node,$mode)}</span>)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:table($node as element(tei:table), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:table($node as element(tei:table), $mode as xs:string) {
     switch($mode)
         case 'html' return
-            <table>{html:passthru($node, $mode, $specialNodes)}</table>
+            <table>{html:passthru($node, $mode)}</table>
 
-        default return html:passthru($node, $mode, $specialNodes)
+        default return html:passthru($node, $mode)
 };
 
-declare function html:text($node as element(tei:text), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:text($node as element(tei:text), $mode as xs:string) {
     switch($mode)
         case 'html-title' return
             if ($node/@type eq 'work_volume') then
@@ -1537,64 +1516,64 @@ declare function html:text($node as element(tei:text), $mode as xs:string, $spec
             else ()
 
         case 'html' return
-            if (html:isCitableWithTeaser($node, $specialNodes)) then
+            if (html:isCitableWithTeaser($node)) then
                 let $delimiter := 
                     if ($node/@type eq 'work_volume' and $node/preceding::tei:text[@type eq 'work_volume']) 
                         then <hr/> 
                     else ()
-                return ($delimiter, html:passthru($node, $mode, $specialNodes))
-            else html:passthru($node, $mode, $specialNodes)
+                return ($delimiter, html:passthru($node, $mode))
+            else html:passthru($node, $mode)
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
 declare function html:textNode($node as node(), $mode as xs:string) {
     $node
 };
 
-declare function html:title($node as element(tei:title), $mode as xs:string, $specialNodes as map(*)) {
-    html:name($node, $mode, $specialNodes)
+declare function html:title($node as element(tei:title), $mode as xs:string) {
+    html:name($node, $mode)
 };
 
-declare function html:titlePage($node as element(tei:titlePage), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:titlePage($node as element(tei:titlePage), $mode as xs:string) {
     switch($mode)
         case 'html' return
             (: Make toolbox for titlePage at the same point where it is created for all other elements, in html:dispatch :)
-            let $toolbox := html:makeSectionToolbox($node, $specialNodes)
+            let $toolbox := html:makeSectionToolbox($node)
             (: distinguishing first and subsequent titlePage(s) for rendering them differently :)
             let $class := if ($node[not(preceding-sibling::tei:titlePage)]) then 'titlePage' else 'sec-titlePage'
             return
                 <div class="{$class}">
                     {$toolbox}
                     <div class="titlePage-body">
-                        {html:passthru($node, $mode, $specialNodes)}
+                        {html:passthru($node, $mode)}
                     </div>
                 </div>
 
         default return
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:titlePart($node as element(tei:titlePart), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:titlePart($node as element(tei:titlePart), $mode as xs:string) {
     switch($mode)
         case 'html' return
             if ($node/@type eq 'main') then
-                <h1>{html:passthru($node, $mode, $specialNodes)}</h1>
-            else html:passthru($node, $mode, $specialNodes)
+                <h1>{html:passthru($node, $mode)}</h1>
+            else html:passthru($node, $mode)
 
         default return 
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };
 
-declare function html:unclear($node as element(tei:unclear), $mode as xs:string, $specialNodes as map(*)) {
+declare function html:unclear($node as element(tei:unclear), $mode as xs:string) {
     switch($mode)
         case 'html' return
             (: TODO i18n title :)
             if ($node//text()) then
-                <span title="unclear" class="sal-unclear-text">{html:passthru($node, $mode, $specialNodes)}</span>
+                <span title="unclear" class="sal-unclear-text">{html:passthru($node, $mode)}</span>
             else <span title="unclear" class="sal-unclear"/>
 
         default return 
-            html:passthru($node, $mode, $specialNodes)
+            html:passthru($node, $mode)
 };

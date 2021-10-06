@@ -11,8 +11,8 @@ declare         namespace util        = "http://exist-db.org/xquery/util";
 
 import module   namespace console     = "http://exist-db.org/xquery/console";
 
-import module   namespace config      = "http://www.salamanca.school/xquery/config" at "modules/config.xqm";
-import module   namespace i18n        = "http://exist-db.org/xquery/i18n"           at "i18n.xqm";
+import module   namespace config      = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module   namespace i18n        = "http://exist-db.org/xquery/i18n"           at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
 
 (: Reduces a TEI doc to pure structural information and indexes structural nodes according to sal:node index, thus enhancing the TEI for RDF extraction. :)
 

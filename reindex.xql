@@ -4,7 +4,7 @@ declare         namespace   exist   = "http://exist.sourceforge.net/NS/exist";
 declare         namespace   util    = "http://exist-db.org/xquery/util";
 declare         namespace   xmldb   = "http://exist-db.org/xquery/xmldb";
 
-import module   namespace   config  = "http://www.salamanca.school/xquery/config"   at "modules/config.xqm";
+import module   namespace   config  = "http://www.salamanca.school/xquery/config"   at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
 
 declare         option      exist:serialize "method=xhtml media-type=text/html indent=yes";
 

@@ -15,8 +15,8 @@ declare namespace util         = "http://exist-db.org/xquery/util";
 
 import module namespace console     = "http://exist-db.org/xquery/console";
 
-import module namespace admin  = "http://www.salamanca.school/xquery/admin"  at "modules/admin.xqm";
-import module namespace config = "http://www.salamanca.school/xquery/config" at "config.xqm";
+import module namespace admin  = "http://www.salamanca.school/xquery/admin"  at "xmldb:exist:///db/apps/salamanca/modules/admin.xqm";
+import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
 
 declare option exist:timeout "43200000"; (: 12 h :)
 declare option exist:output-size-limit "5000000"; (: max number of nodes in memory :)
@@ -84,7 +84,7 @@ let $title :=
         'Webdata Output for Format "' || $format || '"'
     else 'Webdata Output for Resource(s): "' || $rid || '"; Format: "' || $format || '"'
 
-let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Done.") else ()
+let $debug := if ($config:debug = ("trace", "info")) then console:log("[ADMIN] Done rendering " || $format || " for " || $rid || ".") else ()
 
 return
     <html>

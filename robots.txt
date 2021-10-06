@@ -11,5 +11,6 @@ Disallow: /stats.html
 Disallow: /search.html
 Disallow: /*?*q=
 Disallow: /*:*
+Disallow: /*?*frag=
 
 Sitemap: https://www.salamanca.school/sitemap_index.xml

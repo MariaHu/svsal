@@ -11,9 +11,9 @@ import module namespace templates="http://exist-db.org/xquery/templates" ;
  : The following modules provide functions which will be called by the 
  : templating.
  :)
-import module namespace xconfig = "http://xtriples.spatialhumanities.de/config" at "xconfig.xqm"; 
-(: import module namespace config      = "http://www.salamanca.school/xquery/config" at "../../../modules/config.xqm"; :)
-import module namespace app = "http://xtriples.spatialhumanities.de/templates" at "app.xqm";
+import module namespace xconfig = "http://xtriples.spatialhumanities.de/config" at "xmldb:exist:///db/apps/salamanca/services/lod/modules/xconfig.xqm"; 
+(: import module namespace config = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/services/lod/modules/config.xqm"; :)
+import module namespace app  = "http://xtriples.spatialhumanities.de/templates" at "xmldb:exist:///db/apps/salamanca/services/lod/modules/app.xqm";
 
 declare option exist:serialize "method=html5 media-type=text/html enforce-xhtml=yes";
 

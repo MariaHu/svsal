@@ -270,7 +270,7 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
         let $title          :=  $item/tei:fileDesc/tei:titleStmt/tei:title[@type = 'short']
         let $status         :=  xs:string($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status)
         let $disclaimer     :=  if ($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status eq "h_temporarily_suspended") then
-                                    normalize-space($item/ancestor-or-self::tei:TEI//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/string())
+                                    normalize-space($item/ancestor-or-self::tei:TEI//tei:revisionDesc//tei:change[@status eq "h_temporarily_suspended"][1]/replace(., '&#x0a;', ' '))
                                 else ()
         let $WIPstatus      :=  
             if ($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status =
@@ -681,8 +681,8 @@ declare %templates:wrap
                                 let $thisEd         :=      $root//tei:teiHeader//tei:sourceDesc//tei:pubPlace[@role = 'thisEd']
                                 let $firstEd        :=      $root//tei:teiHeader//tei:sourceDesc//tei:pubPlace[@role = 'firstEd']
                                 let $publisher := 
-                                    if ($thisEd) then $root//tei:teiHeader//tei:imprint/tei:publisher[@n = 'thisEd']/tei:persName[1]/tei:surname 
-                                    else $root//tei:teiHeader//tei:imprint/tei:publisher[@n = 'firstEd']/tei:persName[1]/tei:surname
+                                    if ($thisEd) then ($root//tei:teiHeader//tei:imprint/tei:publisher[@n = 'thisEd']/tei:persName/tei:surname)[1] 
+                                    else ($root//tei:teiHeader//tei:imprint/tei:publisher[@n = 'firstEd']/tei:persName/tei:surname)[1]
                                 let $place          :=      if ($thisEd) then $thisEd else $firstEd
                                 let $year           :=      
                                     if ($thisEd) then $root//tei:teiHeader//tei:date[@type = 'thisEd']/@when/string() 

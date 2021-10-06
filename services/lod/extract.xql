@@ -37,7 +37,7 @@ xquery version "3.1";
 
 import module namespace functx   = "http://www.functx.com";
 import module namespace console  = "http://exist-db.org/xquery/console";
-import module namespace xconfig  = "http://xtriples.spatialhumanities.de/config" at "modules/xconfig.xqm";
+import module namespace xconfig  = "http://xtriples.spatialhumanities.de/config" at "xmldb:exist:///db/apps/salamanca/services/lod/modules/xconfig.xqm";
 
 (: ### SVSAL modules and namespaces ### :)
 declare namespace sal		   = "http://salamanca.adwmainz.de";
@@ -507,13 +507,84 @@ declare function xtriples:getFormat() {
 
 
 
-(: safety filter for XPATH/XQuery expressions - dissallows executions from dangerous/not needed function namespaces :)
+(: safety filter for XPATH/XQuery expressions - disallows executions from dangerous/not needed function namespaces :)
 declare function xtriples:expressionSanityCheck($expression as xs:string) as xs:boolean {
 
-(:  let $pattern := "((fn:.*\(.*\))|(doc*\(.*\))|(collection*\(.*\))|(v:.*\(.*\))|(backups:.*\(.*\))|(compression:.*\(.*\))|(contentextraction:.*\(.*\))|(counter:.*\(.*\))|(cqlparser:.*\(.*\))|(datetime:.*\(.*\))|(examples:.*\(.*\))|(exi:.*\(.*\))|(file:.*\(.*\))|(httpclient:.*\(.*\))|(image:.*\(.*\))|(inspection:.*\(.*\))|(jindi:.*\(.*\))|(kwic:.*\(.*\))|(lucene:.*\(.*\))|(mail:.*\(.*\))|(math:.*\(.*\))|(ngram:.*\(.*\))|(repo:.*\(.*\))|(request:.*\(.*\))|(response:.*\(.*\))|(scheduler:.*\(.*\))|(securitymanager:.*\(.*\))|(sequences:.*\(.*\))|(session:.*\(.*\))|(sort:.*\(.*\))|(sql:.*\(.*\))|(system:.*\(.*\))|(testing:.*\(.*\))|(text:.*\(.*\))|(transform:.*\(.*\))|(util:.*\(.*\))|(validation:.*\(.*\))|(xmldb:.*\(.*\))|(xmldiff:.*\(.*\))|(xqdoc:.*\(.*\))|(xslfo:.*\(.*\))|(config:.*\(.*\))|(docbook:.*\(.*\))|(app:.*\(.*\))|(dash:.*\(.*\))|(service:.*\(.*\))|(login-helper:.*\(.*\))|(packages:.*\(.*\))|(service:.*\(.*\))|(usermanager:.*\(.*\))|(demo:.*\(.*\))|(cex:.*\(.*\))|(ex:.*\(.*\))|(apputil:.*\(.*\))|(site:.*\(.*\))|(pretty:.*\(.*\))|(date:.*\(.*\))|(tei2:.*\(.*\))|(dbutil:.*\(.*\))|(docs:.*\(.*\))|(dq:.*\(.*\))|(review:.*\(.*\))|(epub:.*\(.*\))|(l18n:.*\(.*\))|(intl:.*\(.*\))|(restxq:.*\(.*\))|(tmpl:.*\(.*\))|(templates:.*\(.*\))|(trigger:.*\(.*\))|(jsjson:.*\(.*\))|(xqdoc:.*\(.*\)))":)
-	let $pattern := "((fn:.*\(.*\))|(collection*\(.*\))|(v:.*\(.*\))|(backups:.*\(.*\))|(compression:.*\(.*\))|(contentextraction:.*\(.*\))|(counter:.*\(.*\))|(cqlparser:.*\(.*\))|(datetime:.*\(.*\))|(examples:.*\(.*\))|(exi:.*\(.*\))|(file:.*\(.*\))|(httpclient:.*\(.*\))|(http:.*\(.*\))|(image:.*\(.*\))|(inspection:.*\(.*\))|(jindi:.*\(.*\))|(kwic:.*\(.*\))|(lucene:.*\(.*\))|(mail:.*\(.*\))|(math:.*\(.*\))|(ngram:.*\(.*\))|(repo:.*\(.*\))|(request:.*\(.*\))|(response:.*\(.*\))|(scheduler:.*\(.*\))|(securitymanager:.*\(.*\))|(sequences:.*\(.*\))|(session:.*\(.*\))|(sort:.*\(.*\))|(sql:.*\(.*\))|(system:.*\(.*\))|(testing:.*\(.*\))|(text:.*\(.*\))|(transform:.*\(.*\))|(util:.*\(.*\))|(validation:.*\(.*\))|(xmldb:.*\(.*\))|(xmldiff:.*\(.*\))|(xqdoc:.*\(.*\))|(xslfo:.*\(.*\))|(config:.*\(.*\))|(docbook:.*\(.*\))|(app:.*\(.*\))|(dash:.*\(.*\))|(service:.*\(.*\))|(login-helper:.*\(.*\))|(packages:.*\(.*\))|(service:.*\(.*\))|(usermanager:.*\(.*\))|(demo:.*\(.*\))|(cex:.*\(.*\))|(ex:.*\(.*\))|(apputil:.*\(.*\))|(site:.*\(.*\))|(pretty:.*\(.*\))|(date:.*\(.*\))|(tei2:.*\(.*\))|(dbutil:.*\(.*\))|(docs:.*\(.*\))|(dq:.*\(.*\))|(review:.*\(.*\))|(epub:.*\(.*\))|(l18n:.*\(.*\))|(intl:.*\(.*\))|(restxq:.*\(.*\))|(tmpl:.*\(.*\))|(templates:.*\(.*\))|(trigger:.*\(.*\))|(jsjson:.*\(.*\))|(xqdoc:.*\(.*\)))"
+	let $pattern := "("                                 || 
+                    "(app:.*\(.*\))|"                   ||
+                    "(apputil:.*\(.*\))|"               ||
+                    "(backups:.*\(.*\))|"               ||
+                    "(cex:.*\(.*\))|"                   ||
+                    "(collection:*\(.*\))|"             ||
+                    "(compression:.*\(.*\))|"           ||
+                    "(config:.*\(.*\))|"                ||
+                    "(contentextraction:.*\(.*\))|"     ||
+                    "(counter:.*\(.*\))|"               ||
+                    "(cqlparser:.*\(.*\))|"             ||
+                    "(dash:.*\(.*\))|"                  ||
+                    "(date:.*\(.*\))|"                  ||
+                    "(datetime:.*\(.*\))|"              ||
+                    "(dbutil:.*\(.*\))|"                ||
+                    "(demo:.*\(.*\))|"                  ||
+(:                  "(doc\(.*\))|"                      ||  :)
+                    "(docs:.*\(.*\))|"                  ||
+                    "(docbook:.*\(.*\))|"               ||
+                    "(dq:.*\(.*\))|"                    ||
+                    "(epub:.*\(.*\))|"                  ||
+                    "(ex:.*\(.*\))|"                    ||
+                    "(examples:.*\(.*\))|"              ||
+                    "(exi:.*\(.*\))|"                   ||
+                    "(file:.*\(.*\))|"                  ||
+                    "(fn:.*\(.*\))|"                    ||
+                    "(http:.*\(.*\))|"                  ||
+                    "(httpclient:.*\(.*\))|"            ||
+                    "(image:.*\(.*\))|"                 ||
+                    "(inspection:.*\(.*\))|"            ||
+                    "(intl:.*\(.*\))|"                  ||
+                    "(jindi:.*\(.*\))|"                 ||
+                    "(json:.*\(.*\))|"                  ||
+                    "(kwic:.*\(.*\))|"                  ||
+                    "(l18n:.*\(.*\))|"                  ||
+                    "(login-helper:.*\(.*\))|"          ||
+                    "(lucene:.*\(.*\))|"                ||
+                    "(mail:.*\(.*\))|"                  ||
+                    "(math:.*\(.*\))|"                  ||
+                    "(ngram:.*\(.*\))|"                 ||
+                    "(packages:.*\(.*\))|"              ||
+                    "(pretty:.*\(.*\))|"                ||
+                    "(repo:.*\(.*\))|"                  ||
+                    "(request:.*\(.*\))|"               ||
+                    "(response:.*\(.*\))|"              ||
+                    "(restxq:.*\(.*\))|"                ||
+                    "(review:.*\(.*\))|"                ||
+                    "(scheduler:.*\(.*\))|"             ||
+                    "(securitymanager:.*\(.*\))|"       ||
+                    "(sequences:.*\(.*\))|"             ||
+                    "(service:.*\(.*\))|"               ||
+                    "(session:.*\(.*\))|"               ||
+                    "(site:.*\(.*\))|"                  ||
+                    "(sort:.*\(.*\))|"                  ||
+                    "(sql:.*\(.*\))|"                   ||
+                    "(system:.*\(.*\))|"                ||
+                    "(tei2:.*\(.*\))|"                  ||
+                    "(templates:.*\(.*\))|"             ||
+                    "(testing:.*\(.*\))|"               ||
+                    "(text:.*\(.*\))|"                  ||
+                    "(tmpl:.*\(.*\))|"                  ||
+                    "(transform:.*\(.*\))|"             ||
+                    "(trigger:.*\(.*\))|"               ||
+                    "(usermanager:.*\(.*\))|"           ||
+                    "(util:.*\(.*\))|"                  ||
+                    "(v:.*\(.*\))|"                     ||
+                    "(validation:.*\(.*\))|"            ||
+                    "(xmldb:.*\(.*\))|"                 ||
+                    "(xmldiff:.*\(.*\))|"               ||
+                    "(xqdoc:.*\(.*\))|"                 ||
+                    "(xslfo:.*\(.*\))"                  ||
+                    ")"
+
 	let $check := matches($expression, $pattern)
-    let $debug := local:log("Expression sanity check failed for expression '" || $expression || "'.", "error")
+    let $debug := if ($check) then local:log("Expression sanity check failed for expression '" || $expression || "'.", "error") else ()
 
 	return (not($check))
 };
