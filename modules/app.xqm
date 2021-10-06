@@ -1162,7 +1162,11 @@ declare
         else
             error(xs:QName('app:displaySingleWork'), 'Error: HTML Collection ' || $htmlPath || ' not available.')
 
-    let $originalHTMLDoc := doc($htmlPath || "/" || $targetFragment)
+    let $originalHTMLDoc := 
+        if (doc-available($htmlPath || "/" || $targetFragment)) then
+            doc($htmlPath || "/" || $targetFragment)
+        else
+    error(xs:QName('app:displaySingleWork'), 'Error: HTML Fragment ' || $htmlPath || "/" || $targetFragment || ' not available.')
 
     (: If we have url parameters, fill them all (except frag) in document's links :)
     let $urlParameters := 
@@ -1295,9 +1299,15 @@ declare %private function app:copyInsertSearchParam($node as node()?, $q as xs:s
                                 if (starts-with($attr, '#')) then 
                                     $attr
                                 else if (contains($attr, '#')) then
-                                    replace($attr, '#', concat('&amp;q=', $q, '#'))
-                                else 
-                                    concat($attr, '&amp;q=', $q)
+                                    if (contains($attr, '?')) then
+                                        replace($attr, '#', concat('&amp;q=', $q, '#'))
+                                else
+ replace($attr, '#', concat('?q=', $q, '#'))
+                                    else 
+                                    if (contains($attr, '?')) then
+                                        concat($attr, '&amp;q=', $q)
+                            else
+                                        concat($attr, '?q=', $q)
                             return attribute {name($attr)} {$value}
                         default return
                             $attr
@@ -1327,9 +1337,15 @@ declare %private function app:attrInsertSearchParam($attr as attribute(), $q as 
                 if (starts-with($attr, '#')) then 
                     $attr
                 else if (contains($attr, '#')) then
-                    replace($attr, '#', concat('&amp;q=', $q, '#'))
-                else 
-                    concat($attr, '&amp;q=', $q)
+                    if (contains($attr, '?')) then
+                        replace($attr, '#', concat('&amp;q=', $q, '#'))
+                else
+ replace($attr, '#', concat('?q=', $q, '#'))
+                    else 
+                    if (contains($attr, '?')) then
+                        concat($attr, '&amp;q=', $q)
+            else
+                        concat($attr, '?q=', $q)
             return attribute {name($attr)} {$value}
         default return
             $attr
@@ -2412,7 +2428,7 @@ declare function app:WRKeditionMetadata($node as node(), $model as map(*), $wid 
     let $isPublished := app:WRKisPublished($node, $model, $workId)
     let $pubDate := 
         if ($isPublished) then
-            $teiHeader/tei:fileDesc/tei:editionStmt/tei:edition/tei:date/@when/string()
+            $teiHeader/tei:fileDesc/tei:editionStmt/tei:edition/tei:date[1]/@when/string()
         else ()
     let $scholarlyEditors := 
         if ($isPublished) then
@@ -2424,7 +2440,7 @@ declare function app:WRKeditionMetadata($node as node(), $model as map(*), $wid 
             string-join(for $ed in $teiHeader/tei:fileDesc/tei:titleStmt/tei:editor[contains(@role, '#technical')]/tei:persName
                              return app:rotateFormatName($ed), '; ')
         else ()
-    let $currentVolume := $teiHeader/tei:fileDesc/tei:seriesStmt/tei:biblScope/@n/string()
+    let $currentVolume := $teiHeader/tei:fileDesc/tei:seriesStmt/tei:biblScope[1]/@n/string()
     let $seriesEditors := string-join(for $ed in $teiHeader/tei:fileDesc/tei:seriesStmt/tei:editor/tei:persName 
                                                      order by $ed/tei:surname
                                                      return app:rotateFormatName($ed), '; ')
@@ -3449,19 +3465,33 @@ declare %private
         </a>
     (: make list of works edited by the team member :)
     let $scholarlyContrib := 
+        for $tei in collection($config:tei-works-root)/tei:TEI[tei:teiHeader//tei:editor
+            [@xml:id eq $person/@xml:id]
+                [contains(@role, 'scholarly')]
+                                                               ]
+ [sutil:WRKisPublished(@xml:id)] return
+(: replaced the following with the above for performance reasons on 2021-04-28 ...
         for $tei in collection($config:tei-works-root)/tei:TEI[matches(@xml:id, '^W\d{4}$')
             and sutil:WRKisPublished(@xml:id)
             and ./tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:editor[@xml:id eq $person/@xml:id 
                 and (contains(@role, 'scholarly'))]] return
+:)
             <a href="workDetails.html?wid={$tei/@xml:id}">{
             app:rotateFormatName($tei/tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:author/tei:persName) || ': ' ||
             $tei/tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:title[@type = 'short']/string()
             }</a>
     let $technicalContrib := 
+        for $tei in collection($config:tei-works-root)/tei:TEI[tei:teiHeader//tei:editor
+            [@xml:id eq $person/@xml:id]
+                [contains(@role, 'technical')]
+                                                               ]
+ [sutil:WRKisPublished(@xml:id)] return
+(: replaced the following with the above for performance reasons on 2021-04-28 ...
         for $tei in collection($config:tei-works-root)/tei:TEI[matches(@xml:id, '^W\d{4}$')
             and sutil:WRKisPublished(@xml:id)
             and ./tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:editor[@xml:id eq $person/@xml:id 
                 and (contains(@role, 'technical'))]] return
+:)
             <a href="workDetails.html?wid={$tei/@xml:id}">{
             app:rotateFormatName($tei/tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:author/tei:persName) || ': ' ||
             $tei/tei:teiHeader/tei:fileDesc/tei:titleStmt/tei:title[@type = 'short']/string()
