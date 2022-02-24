@@ -94,8 +94,10 @@ declare variable $config:iiifPresentationServer := $config:imageserver || "/iiif
 declare variable $config:svnserver := "";
 
 (: the digilib image service :)
-(:declare variable $config:digilibServerScaler     := "https://c104-131.cloud.gwdg.de:8443/digilib/Scaler/IIIF/svsal!";:)
+(:declare variable $config:digilibServerScaler   := "https://c104-131.cloud.gwdg.de:8443/digilib/Scaler/IIIF/svsal!";:)
 declare variable $config:digilibServerScaler     := "https://c099-013.cloud.gwdg.de:8443/digilib/Scaler/IIIF/svsal!";
+(:declare variable $config:digilibServerScaler   := "https://facs.salamanca.school/iiif/image/";:)
+
 (: the digilib manifest service :)
 (:declare variable $config:digilibServerManifester := "https://c104-131.cloud.gwdg.de:8443/digilib/Manifester/IIIF/svsal!";:)
 declare variable $config:digilibServerManifester := "https://c099-013.cloud.gwdg.de:8443/digilib/Manifester/IIIF/svsal!";

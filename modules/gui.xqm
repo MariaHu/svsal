@@ -368,7 +368,7 @@ declare
                 <li class="{if (contains(request:get-url(), 'news')) then 'active' else ()}">
                     <a href="{$config:blogserver}/?lang={$lang}">
                     <span class="glyphicon glyphicon-hand-right" aria-hidden="true"></span>&#160;
-                    <i18n:text key="news">Aktuelles</i18n:text></a></li>
+                    <i18n:text key="news">Blog</i18n:text></a></li>
                 <li class="{if ( (contains(request:get-url(), 'project')) or
                                  (contains(request:get-url(), 'guide')) or
                                  (contains(request:get-url(), 'editorial')) or
@@ -461,10 +461,10 @@ declare
                 </div>
             <!-- the Max Planck Institute -->    
                 <div class="col-md-3 hidden-sm hidden-xs">
-                    <a href="http://www.rg.mpg.de"><img class="img-responsive" style="margin-top: 5%; float: right; height: 110px;" src="resources/img/logos_misc/mpilhlt-small.svg"/></a>
+                    <a href="http://www.lhlt.mpg.de"><img class="img-responsive" style="margin-top: -7%; float: right; height: 140px;" src="resources/img/logos_misc/mpilhlt-small.svg"/></a>
                 </div>
                 <div class="hidden-lg hidden-md col-sm-4" style="text-align: center;margin-top: 1%">
-                    <a href="http://www.rg.mpg.de"><p><span class="glyphicon glyphicon-new-window" aria-hidden="true"></span> Max-Planck-Institut<br/>für Rechtsgeschichte<br/>und Rechtstheorie</p></a>
+                    <a href="http://www.lhlt.mpg.de"><p><span class="glyphicon glyphicon-new-window" aria-hidden="true"></span> Max-Planck-Institut<br/>für Rechtsgeschichte<br/>und Rechtstheorie</p></a>
                 </div>
             <!-- powered by eXist -->        
                  <div class="col-md-3 hidden-sm hidden-xs">
