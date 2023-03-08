@@ -1,36 +1,38 @@
 xquery version "3.1";
 
-module namespace index            = "https://www.salamanca.school/factory/works/index";
-declare namespace exist            = "http://exist.sourceforge.net/NS/exist";
-declare namespace tei              = "http://www.tei-c.org/ns/1.0";
-declare namespace sal              = "http://salamanca.adwmainz.de";
-declare namespace xi                = "http://www.w3.org/2001/XInclude";
-declare namespace admin              = "http://www.salamanca.school/xquery/admin";
- 
-import module namespace functx      = "http://www.functx.com";
-import module namespace util       = "http://exist-db.org/xquery/util";
-import module namespace console    = "http://exist-db.org/xquery/console";
-import module namespace config     = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace sutil    = "http://www.salamanca.school/xquery/sutil" at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
-import module namespace txt        = "https://www.salamanca.school/factory/works/txt" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
-
-
-
 (: ####++++----  
 
     Functions for extracting node indices (sal:index) from TEI works; also includes functionality for making 
-    citetrails, passagetrails, and crumbtrails.
+    citeIDs, labels, and crumbtrails.
    
    ----++++#### :)
 
+module namespace index  = "http://www.salamanca.school/factory/works/index";
 
-(: CONFIG :)
+declare namespace tei   = "http://www.tei-c.org/ns/1.0";
+declare namespace sal   = "http://salamanca.adwmainz.de";
+declare namespace admin = "http://www.salamanca.school/xquery/admin";
 
+declare namespace exist = "http://exist.sourceforge.net/NS/exist";
+declare namespace map   = "http://www.w3.org/2005/xpath-functions/map";
+declare namespace util  = "http://exist-db.org/xquery/util";
+declare namespace xi    = "http://www.w3.org/2001/XInclude";
 
-declare variable $index:citetrailConnector := '.';
-declare variable $index:passagetrailConnector := ' ';
+import module namespace console = "http://exist-db.org/xquery/console";
+import module namespace functx  = "http://www.functx.com";
+
+import module namespace config  = "http://www.salamanca.school/xquery/config"     at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace sutil   = "http://www.salamanca.school/xquery/sutil"      at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
+import module namespace txt     = "http://www.salamanca.school/factory/works/txt" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
+
+(: SETTINGS :)
+
+declare option exist:timeout "166400000"; (: in miliseconds, 25.000.000 ~ 7h, 43.000.000 ~ 12h :)
+declare option exist:output-size-limit "5000000"; (: max number of nodes in memory :)
+
+declare variable $index:citeIDConnector := '.';
+declare variable $index:labelConnector := ' ';
 declare variable $index:crumbtrailConnector := ' » ';
-
 
 
 (: NODE INDEX functions :)
@@ -38,15 +40,25 @@ declare variable $index:crumbtrailConnector := ' » ';
 
 (:
 ~ Controller function for creating (and reporting about) node indexes. 
+~ Here's what it does:
+~ - It determines at which depth to segment a work
+~ - It resolves all XIncludes
+~ - It calls index:getFragmentNodes() in order to build the set of nodes constituting html fragments (the "target-set")
+~ - It collects all nodes that we should be keeping track of (defined in index:isIndexNode())
+~ - For all these nodes, it registers in which fragment they end up
+~   (the nearest ((ancestor-or-self or descendant that has no preceding siblings) that's also contained in the target-set))
 :)
 declare function index:makeNodeIndex($tei as element(tei:TEI)) as map(*) {
     let $wid := $tei/@xml:id
+    let $fragmentationDepth := index:determineFragmentationDepth($tei)
+
     let $xincludes := $tei//tei:text//xi:include/@href
     let $work := util:expand($tei)
+    let $pages := $work//tei:pb
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[INDEX] Indexing " || $wid || " (" || count($pages) || " p.) at fragmentation level " || $fragmentationDepth || ".") else ()
     
-    let $fragmentationDepth := index:determineFragmentationDepth($tei)
-    let $debug := if ($config:debug = ("trace", "info")) then console:log("Rendering " || $wid || " at fragmentation level " || $fragmentationDepth || ".") else ()
     let $target-set := index:getFragmentNodes($work, $fragmentationDepth)
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[INDEX] Target set contains " || count($target-set) || " nodes (to become html fragments).") else ()
     
     (: First, get all relevant nodes :)
     let $nodes := 
@@ -58,30 +70,44 @@ declare function index:makeNodeIndex($tei as element(tei:TEI)) as map(*) {
             else ()
                 
     (: Create the fragment id for each node beforehand, so that recursive crumbtrail creation has it readily available :)
-    let $debug := if ($config:debug = ("trace")) then console:log("[ADMIN] Node indexing: identifying fragment ids ...") else ()
+    let $debug := if ($config:debug = ("trace")) then console:log("[INDEX] Node indexing: identifying fragment ids ...") else ()
+    let $debug := if ($config:debug = ("trace", "info")) then console:log("[INDEX] Node indexing: " || count($nodes) || " nodes to process.") else ()
     let $fragmentIds :=
         map:merge(
-            for $node in $nodes
+            for $node at $pos in $nodes
+                let $debug :=   if (($config:debug = "trace") and ($pos mod 1000 eq 0)) then
+                                    console:log("[INDEX] Node indexing: processing node no. " || string($pos)  || " ...")
+                                else ()
                 let $n := $node/@xml:id/string()
-                let $frag := (($node/ancestor-or-self::tei:* | $node//tei:*) intersect $target-set)[1]
+(:              let $frag := (($node/ancestor-or-self::tei:* | $node//tei:*) intersect $target-set)[1]:)
+                let $frag := (($node/ancestor-or-self::* | $node//tei:*[not(preceding-sibling::*)] )intersect $target-set)[1]
+                let $err  := if ((count($frag/@xml:id) eq 0) or ($frag/@xml:id eq "")) then
+                    let $debug := if ($config:debug = ("trace", "info")) then
+                                     console:log("[INDEX] Node indexing: Could not find $frag for $node " || $n || ". Aborting.")
+                                 else ()
+                    return error(QName('http://salamanca.school/err', 'FragmentationProblem'),
+                                 'Could not find $frag for ' || $n || '.')
+                else ()
                 let $fragId := index:makeFragmentId(functx:index-of-node($target-set, $frag), $frag/@xml:id)
                 return map:entry($n, $fragId)
         )
-    let $debug := if ($config:debug = ("trace")) then console:log("[ADMIN] Node indexing: fragment ids extracted.") else ()
+    let $debug := if ($config:debug = ("trace")) then console:log("[INDEX] Node indexing: fragment ids extracted.") else ()
                 
-    let $debug := if ($config:debug = ("trace")) then console:log("[ADMIN] Node indexing: creating index file ...") else ()
+    let $debug := if ($config:debug = ("trace")) then console:log("[INDEX] Node indexing: creating index file ...") else ()
     (: node indexing has 2 stages: :)
     (: 1.) extract nested sal:nodes with rudimentary information :)
     let $indexTree := 
         <sal:index>
-            {index:extractNodeStructure($wid, $work//tei:text[not(ancestor::tei:text)], $xincludes, $fragmentIds)}
+            {index:extractNodeStructure($wid, $work//tei:text[(@type eq 'work_volume' and sutil:WRKisPublished($wid || '_' || @xml:id)) or @type eq 'work_monograph'], $xincludes, $fragmentIds)}
         </sal:index>
-    (: 2.) flatten the index from 1.) and enrich sal:nodes with full-blown citetrails, etc. :)
+    (: 2.) flatten the index from 1.) and enrich sal:nodes with full-blown citeID, etc. :)
+    let $debug := if ($config:debug = ("trace")) then console:log("[INDEX] Node indexing: stage 1 finished ...") else ()
     let $index := 
         <sal:index work="{$wid}" xml:space="preserve">
-            {index:createIndexNodes($indexTree)(:$indexTree/*:)}
+            {index:createIndexNodes($wid, $indexTree)}
         </sal:index>
-        
+        let $debug := if ($config:debug = ("trace")) then console:log("[INDEX] Node indexing: stage 2 finished, cont'ing with quality check ...") else ()
+    
     let $check := index:qualityCheck($index, $work, $target-set, $fragmentationDepth)
         
     return 
@@ -98,60 +124,101 @@ declare function index:makeNodeIndex($tei as element(tei:TEI)) as map(*) {
 (:
 ~ Determines the fragmentation depth of a work, i.e. the hierarchical level of nodes within a TEI dataset which serve
 ~ as root nodes for spltting the dataset into HTML fragments.
+~ We are setting it as Processing Instructions in the TEI files: <?svsal htmlFragmentationDepth="4"?>
 :)
 declare function index:determineFragmentationDepth($work as element(tei:TEI)) as xs:integer {
-    if ($work//processing-instruction('svsal')[matches(., 'htmlFragmentationDepth="\d{1,2}"')]) then
+    let $fd := if ($work//processing-instruction('svsal')[matches(., 'htmlFragmentationDepth="\d{1,2}"')]) then
         xs:integer($work//processing-instruction('svsal')[matches(., 'htmlFragmentationDepth="\d{1,2}"')][1]/replace(., 'htmlFragmentationDepth="(\d{1,2})"', '$1'))
     else $config:fragmentationDepthDefault
+    return $fd
 };
 
 
 (: 
-~ A rule picking those elements that should become the fragments for HTML-rendering a work. Requires an expanded(!) TEI work's dataset.
+~ A rule picking those elements that should become the fragments for HTML-rendering a work.
+~ Requires an expanded(!) TEI work's dataset.
+~ Here's what it does:
+~ - It finds all tei nodes that have n ancestors up to the root node,
+~   where n is a configurable value that is extracted (via index:determineFragmentationDepth) from the TEI file itself.
+~ - Then, if a node is member of our set of "structural nodes" (div, front etc., defined in index:isStructuralNode),
+~   it goes into the target set; otherwise is nearest ancestor that is a "structural node" does.
+~ - Finally, we return the distinct nodes, i.e. no duplicates
+~   (two non-structural nodes of the desired level may have the same ancestor)
+~ - (Obsolete: In front and back, fragmentation must not go below the child level, since we don't expect child fragments be too large here.)
 :)
-declare function index:getFragmentNodes($work as element(tei:TEI), $fragmentationDepth as xs:integer) as node()* {
-    (for $text in $work//tei:text[@type eq 'work_monograph' 
+declare function index:getFragmentNodesOld($work as element(tei:TEI), $fragmentationDepth as xs:integer) as node()* {
+    functx:distinct-nodes(
+        for $text in $work//tei:text[@type eq 'work_monograph' 
                                   or (@type eq 'work_volume' and sutil:WRKisPublished($work/@xml:id || '_' || @xml:id))] return 
-        (
-        (: in front, fragmentation must not go below the child level (child fragments shouldn't be too large here) :)
-        (if ($text/tei:front//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth]) then
-             $text/tei:front/*
-         else $text/tei:front),
-        (if ($text/tei:body//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth]) then
-             $text/tei:body//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth]
-         else $text/tei:body),
-        (if ($text/tei:back//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth]) then
-             $text/tei:back//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth]
-         else $text/tei:back)
+(:
+            (
+                (if ($text/tei:front//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth]) then
+                    $text/tei:front/*
+                 else
+                    $text/tei:front
+                ),
+:)
+        (if ($text//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth]) then
+             for         $node in        $text//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth] return
+                        (if ($node[index:isStructuralNode(.)]) then
+             $node
+                        else
+                            $node/ancestor::tei:*[index:isStructuralNode(.)][1])
+         else
+ $text/tei:text
+                )
+(:
+                (if ($text/tei:back//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth]) then
+                    $text/tei:back/*
+                 else
+                    $text/tei:back
+                )
+            )
+:)
         )
-    )
-    (:    $work//tei:text//tei:*[count(./ancestor-or-self::tei:*) eq $fragmentationDepth]:)
+};
+
+
+declare function index:getFragmentNodes($work as element(tei:TEI), $fragmentationDepth as xs:integer) as node()* {
+             $work/descendant-or-self::tei:*[index:isPotentialFragmentNode(.)][index:isBestDepth(., $fragmentationDepth)]
 };
 
 
 (:
-~ Creates a tree of index nodes (sal:node), where nodes are hierarchically nested according to the hierarchy of nodes in the original TEI tree.
-~ Supplies nodes with basic information (sal:title, sal:passage, etc.), while temporary elements/attributes provide 
-~ information that can be used for the production of citetrails, crumbtrails etc. in the 
+~ Creates a tree of index nodes (sal:node), where nodes are hierarchically nested
+~   according to the hierarchy of nodes in the original TEI tree.
+~ Supplies nodes with basic information (sal:title, sal:passage, etc.),
+~   while temporary elements/attributes provide information that can be used
+~   for the production of citeID, crumbtrails etc. in the 
 ~ final index creation through index:createIndexNodes().
 :)
-declare function index:extractNodeStructure($wid as xs:string, $input as node()*, $xincludes as attribute()*, $fragmentIds as map()?) as element(sal:node)* {
+declare function index:extractNodeStructure($wid as xs:string,
+ $input as node()*,
+ $xincludes as attribute()*,
+ $fragmentIds as map(*)?) as element(sal:node)* {
     for $node in $input return
         typeswitch($node)
             case element() return
+                let $children := $node/*
+                let $dbg := if ($node/self::tei:pb and count($node/preceding::tei:pb) mod                    100 eq 0 and $config:debug = "trace") then
+ let $log := util:log('info', '[INDEX] Processing tei:pb node ' || $node/@n)
+ return console:log('[INDEX] Processing tei:pb ' || $node/@n || ' ...')
+ else ()
+                    return
                 (: index:isIndexNode($node) has already been called in admin:createIndex, so we can use that run here: :)
-                if (:(index:isIndexNode($node)):) ($node/@xml:id and $fragmentIds($node/@xml:id)) then
-                    let $debug := if ($config:debug = ("trace") and $node/self::tei:pb) then index:pb($node, 'debug') else ()
+                if ($node/@xml:id and $fragmentIds($node/@xml:id/string())) then
                     let $subtype := 
                         if ($node[self::tei:milestone]/@n) then (: TODO: where is this used? :)
                             string($node/@n)
                         else if ($node/@type) then
                             string($node/@type)
                         else ()
-(:                    let $isBasicNode := if (index:isBasicNode($node)) then 'true' else 'false':)
-                    let $isNamedCitetrailNode := if (index:isNamedCitetrailNode($node)) then 'true' else 'false'
-(:                    let $category := index:getNodeCategory($node):)
-(:                    let $isPassageNode := if (index:isPassagetrailNode($node)) then 'true' else 'false':)
+                    let $isNamedCiteIDNode := if (index:isNamedCiteIDNode($node)) then 'true' else 'false'
+                    let $title  := index:dispatch($node, 'title')
+                    let $class  := index:dispatch($node, 'class')
+(:                    let $citeID := if (index:isIndexNode($node)) then index:dispatch($node, 'citeID') else ():)
+                    let $crumb  := index:makeCrumb($wid, $node, $fragmentIds)
+                    let $parent := index:getCitableParent($node)
                     return
                         element sal:node {
                             attribute type              {local-name($node)}, 
@@ -160,89 +227,106 @@ declare function index:extractNodeStructure($wid as xs:string, $input as node()*
                             if ($node/@xml:id eq 'completeWork' and $xincludes) then
                                 attribute xinc          {$xincludes}
                             else (), 
-                            attribute class             {index:dispatch($node, 'class')},
-(:                            attribute category          {$category},:)
-(:                            attribute isBasic           {$isBasicNode},:)
-                            attribute isNamedCit        {$isNamedCitetrailNode},
-(:                            attribute isPassage         {$isPassageNode},:)
-                            element sal:title           {index:dispatch($node, 'title')},
+                            attribute class             {$class},
+                            attribute isNamedCit        {$isNamedCiteIDNode},
+                            element sal:title           {$title},
                             element sal:fragment        {$fragmentIds($node/@xml:id/string())},
-                            element sal:crumb           {index:makeCrumb($wid, $node, $fragmentIds)},
-                            if (index:isPassagetrailNode($node)) then 
-                                element sal:passage {index:dispatch($node, 'passagetrail')}
+                            element sal:crumb           {$crumb},
+                            if (index:isLabelNode($node)) then 
+                                element sal:passage {index:dispatch($node, 'label')}
                             else (),
-                            element sal:citableParent   {index:getCitableParent($node)/@xml:id/string()},
-                            (: if the node is a named citetrail node, we include its citetrail part here already 
-                               - unnamed citetrails can be done much faster in phase 2 :)
-                            if ($isNamedCitetrailNode eq 'true') then 
-                                element sal:cit {index:dispatch($node, 'citetrail')} 
+                            element sal:citableParent   {$parent/@xml:id/string()},
+                            (: if the node is a named citeID node, we include its citeID part here already 
+                               - unnamed citeID can be done much faster in phase 2 :)
+                            if ($isNamedCiteIDNode eq 'true') then 
+                                element sal:cit {index:dispatch($node, 'citeID')} 
                             else (),
                             element sal:children        {index:extractNodeStructure($wid, $node/node(), $xincludes, $fragmentIds)}
                         }
-                else index:extractNodeStructure($wid, $node/node(), $xincludes, $fragmentIds)
+                else index:extractNodeStructure($wid, $children, $xincludes, $fragmentIds)
             default return ()
 };
 
 (:
 ~ Creates a flat structure of index nodes (sal:node) from a hierarchically structured preliminary index (see index:extractNodeStructure()),
-~ while enriching those nodes with final citetrails, crumbtrails, etc.
+~ while enriching those nodes with final citeID, crumbtrail, etc.
 :)
-declare function index:createIndexNodes($input as element(sal:index)) as element(sal:node)* {
-    for $node in $input//sal:node return
-        let $citetrail := index:constructCitetrail($node)
-        let $crumbtrail := index:constructCrumbtrail($node)
-        let $passagetrail := index:constructPassagetrail($node)
+declare function index:createIndexNodes($wid as xs:string, $input as element(sal:index)) as element(sal:node)* {
+    let $numberOfNodes := count($input//sal:node)
+    return
+    for $node at $pos in $input//sal:node return
+        let $debug := if ($pos mod 500 eq 0 and $config:debug = "trace") then console:log('[INDEX] Processing sal:node ' || $pos || ' of ' || $numberOfNodes || '.') else ()
+        let $log := if ($pos mod 500 eq 0 and $config:debug = "trace") then util:log('info', '[INDEX] Processing sal:node ' || $pos || ' of ' || $numberOfNodes || '.') else ()
+
+        let $citeID     := index:constructCiteID($node)
+        let $label := index:constructLabel($node)
+        let $crumbtrail := index:constructCrumbtrail($wid, $citeID, $node)
         return
             element sal:node {
-                (: copy some elements and attributes from the previous node :)
                 attribute n {$node/@xml:id/string()},
+                (: copy some attributes from the previous node :)
                 $node/@* except ($node/@category, $node/@isBasicNode, $node/@isNamedCit, $node/@isPassage, $node/@xml:id),
-                $node/sal:title, $node/sal:fragment, $node/sal:citableParent,
-                element sal:citetrail {$citetrail},
-                element sal:crumbtrail {$crumbtrail},
-                element sal:passagetrail {$passagetrail}
+                attribute title {$node/sal:title/string()},
+ attribute fragment {$node/sal:fragment/string()},
+ attribute crumb {$wid || "/html/" || substring-after($node/sal:crumb//@href, "frag=")},
+                attribute citableParent {$node/sal:citableParent/string()},
+                attribute citeID {$citeID},
+                attribute label {$label},
+                element sal:crumbtrail {$crumbtrail}
             }
 };
 
 
-(: Conducts some basic quality checks with regards to consistency, uniqueness of citetrails, etc. within an sal:index :)
+(: Conducts some basic quality checks with regards to consistency, uniqueness of citeID, etc. within an sal:index :)
 declare function index:qualityCheck($index as element(sal:index), 
                                     $work as element(tei:TEI), 
                                     $targetNodes as element()*, 
                                     $fragmentationDepth as xs:integer) {
                                     
     let $wid := $work/@xml:id
+    let $resultNodes := $index//sal:node[not(@n eq 'completeWork')]
+    let $debug := if ($config:debug = "trace") then console:log('[INDEX] QC: check ' || count($resultNodes) || ' nodes in index for ' || $wid || '.') else ()
     
     (: #### Basic quality / consistency check #### :)
-    let $resultNodes := $index//sal:node[not(@n eq 'completeWork')]
     let $testNodes := 
         if (count($resultNodes) eq 0) then 
             error(xs:QName('admin:createNodeIndex'), 'Node indexing did not produce any results.') 
-        else ()
+        else $resultNodes
+
     (: every ordinary sal:node should have all of the required fields and values: :)
+    let $debug := if ($config:debug = "trace") then console:log('[INDEX] QC: check @class/@type/@n attributes...') else ()
     let $testAttributes := 
         if ($testNodes[not(@class/string() and @type/string() and @n/string())]) then 
             error(xs:QName('admin:createNodeIndex'), 'Essential attributes are missing in at least one index node (in ' || $wid || ')') 
         else ()
-    let $testChildren := if ($testNodes[not(sal:title and sal:fragment/text() and sal:citableParent/text() and sal:citetrail/text() and sal:crumbtrail/* and sal:passagetrail/text())]) then error() else ()
-    (: there should be as many distinctive citetrails and crumbtrails as there are ordinary sal:node elements: :)
-    let $testAmbiguousCitetrails := 
-        if (count($resultNodes) ne count(distinct-values($resultNodes/sal:citetrail/text()))) then 
+    let $debug := if ($config:debug = "trace") then console:log('[INDEX] QC: check @title/@fragment/@citableParent/@label attributes and sal:crumbtrail children...') else ()
+    let $testChildren := if ($testNodes[not(@title and @fragment and @citableParent and @label and sal:crumbtrail/*)]) then error() else ()
+
+    let $debug := if ($config:debug = "trace") then console:log('[INDEX] QC: check empty @citeID attributes...') else ()
+    let $testEmptyCiteID :=
+        if (count($resultNodes/@citeID[not(./string())]) gt 0) then
             error(xs:QName('admin:createNodeIndex'), 
-                  'Could not produce a unique citetrail for each sal:node (in ' || $wid || '). Problematic nodes: '
-                  || string-join(($resultNodes[sal:citetrail/text() = preceding::sal:citetrail/text()]/@n), '; ')) 
-        else () 
-    (: search these cases using: " //sal:citetrail[./text() = following::sal:citetrail/text()] :)
-    let $testEmptyCitetrails :=
-        if (count($resultNodes/sal:citetrail[not(./text())]) gt 0) then
-            error(xs:QName('admin:createNodeIndex'), 
-                  'Could not produce a citetrail for one or more sal:node (in' || $wid || '). Problematic nodes: '
-                  || string-join(($resultNodes[not(sal:citetrail/text())]/@n), '; '))
+                  'Could not produce a citeID for one or more sal:node (in' || $wid || '). Problematic nodes: '
+                  || string-join((for $x in $resultNodes[not(@citeID/string())] return $x/@n/string() || '(' || $x/@type/string() || ')'), '; '))
         else ()
-    (: search for " //sal:citetrail[not(./text())] ":)
+
+ (: there should be as many distinctive citeID and crumbtrails as there are ordinary sal:node elements: :)
+    let $debug := if ($config:debug = "trace") then console:log('[INDEX] QC: Make sure @citeIDs are unique (compare number of nodes to number of distinct @citeID values)...') else ()
+    let $testAmbiguousCiteID := 
+        if (count($resultNodes) ne count(distinct-values($resultNodes/@citeID/string()))) then 
+            error(xs:QName('admin:createNodeIndex'), 
+                  'Could not produce a unique citeID for each sal:node (in ' || $wid || '). Problematic nodes: '
+                  || string-join(
+                        (for $x in $resultNodes[@citeID = preceding::sal:node/@citeID]
+                         return concat($x/@n || '(citeID ' || $x/@citeID|| ')', '<->', string-join($resultNodes[following::sal:node/@citeID = $x/@citeID]/@n || '(citeID ' || $x/@citeID|| ')', '~')))
+                        , ' || '
+                    ))
+        else ()
+    (: search for " //@citeID[not(./string())] ":)
     (: not checking crumbtrails here ATM for not slowing down index creation too much... :)
     
     (: check whether all text is being captured through basic index nodes (that is, whether every single passage is citable) :)
+    let $debug := if ($config:debug = "trace") then console:log('[INDEX] QC: Check whether every single passage is citable...') else ()
     let $checkBasicNodes := 
         for $t in $work//tei:text[@type eq 'work_monograph' 
                                   or (@type eq 'work_volume' and sutil:WRKisPublished($wid || '_' || @xml:id))]
@@ -254,7 +338,7 @@ declare function index:qualityCheck($index as element(sal:index),
     (: if no xml:id is put out, try to search these cases like so:
         //text//text()[not(normalize-space() eq '')][not(ancestor::*[@xml:id and (self::p or self::signed or self::head or self::titlePage or self::lg or self::item or self::label or self::argument or self::table)])]
     :)
-    
+
     (: See if there are any leaf elements in our text that are not matched by our rule :)
     let $missed-elements := $work//(tei:front|tei:body|tei:back)//tei:*[count(./ancestor-or-self::tei:*) < $fragmentationDepth][not(*)]
     (: See if any of the elements we did get is lacking an xml:id attribute :)
@@ -270,45 +354,45 @@ declare function index:qualityCheck($index as element(sal:index),
 };
 
 
-(: PASSAGETRAILS, CITETRAILS, CRUMBTRAILS (-- deep recursion) :)
+(: LABELS, CiteID, CRUMBTRAILS (-- deep recursion) :)
 
-declare function index:constructCitetrail($node as element(sal:node)) as xs:string {
+declare function index:constructCiteID($node as element(sal:node)) as xs:string {
     let $prefix := 
         if ($node/sal:citableParent/text() and $node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()]) then
-            index:constructCitetrail($node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()])
+            index:constructCiteID($node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()])
         else ()
     let $this := 
         if ($node/sal:cit) then $node/sal:cit/text() 
-        (: if sal:cit doesn't already exist, we are dealing with a numeric/unnamed citetrail node and create the citetrail part here: :)
+        (: if sal:cit doesn't already exist, we are dealing with a numeric/unnamed citeID node and create the citeID part here: :)
         else string(count($node/preceding-sibling::sal:node[@isNamedCit eq 'false']) + 1)
     return
-        if ($prefix and $this) then $prefix || $index:citetrailConnector || $this else $this
+        if ($prefix and $this) then $prefix || $index:citeIDConnector || $this else $this
 };
 
-declare function index:constructCrumbtrail($node as element(sal:node)) as item()+ {
+declare function index:constructCrumbtrail($wid as xs:string, $citeID as xs:string, $node as element(sal:node)) as item()+ {
     let $prefix := 
         if ($node/sal:citableParent/text() and $node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()]) then
-            index:constructCrumbtrail($node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()])
+            index:constructCrumbtrail($wid, index:constructCiteID($node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()]), $node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()])
         else ()
-    let $this := $node/sal:crumb/*
+    let $this := if ($citeID) then <a href="{$config:idserver || '/texts/' || $wid || ':' || $citeID}">{$node/sal:title/text()}</a> else $node/sal:crumb/*
     return
         if ($prefix and $this) then ($prefix, $index:crumbtrailConnector, $this) else $this
 };
 
-declare function index:constructPassagetrail($node as element(sal:node)) as xs:string? {
+declare function index:constructLabel($node as element(sal:node)) as xs:string? {
     let $prefix := 
         if ($node/sal:citableParent/text() and $node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()]) then
-            index:constructPassagetrail($node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()])
+            index:constructLabel($node/ancestor::sal:node[@xml:id eq $node/sal:citableParent/text()])
         else ()
     (: not every sal:node has a distinctive passage: :)
     let $this := if ($node/sal:passage/text()) then $node/sal:passage/text() else ''
     return
         if ($prefix and $this) then 
-            $prefix || $index:passagetrailConnector || $this 
+            $prefix || $index:labelConnector || $this 
         else $prefix || $this (: this will only return one of both, if any at all :)
 };
 
-declare function index:makeCrumb($wid as xs:string, $node as node(), $fragmentIds as map()?) as element(a)? {
+declare function index:makeCrumb($wid as xs:string, $node as node(), $fragmentIds as map(*)) as element(a)? {
     let $class := index:dispatch($node, 'class')
     return
         if ($class) then
@@ -317,8 +401,7 @@ declare function index:makeCrumb($wid as xs:string, $node as node(), $fragmentId
             <a href="{index:makeUrl($wid, $node, $fragmentIds)}">{index:dispatch($node, 'title')}</a>
 };
 
-
-(: Gets the citable crumbtrail/citetrail (not passagetrail!) parent :)
+(: Gets the citable crumbtrail/citeID (not label!) parent :)
 declare function index:getCitableParent($node as node()) as node()? {
     if (index:isMarginalNode($node) or index:isAnchorNode($node)) then
         (: notes, milestones etc. must not have p as their citableParent :)
@@ -332,9 +415,9 @@ declare function index:getCitableParent($node as node()) as node()? {
 };
 
 
-(: Marginal citetrails: "nX" where X is the anchor used (if it is alphanumeric) and "nXY" where Y is the number of times that X occurs inside the current div
-    (important: nodes are citetrail children of div (not of p) and are counted as such) :)
-declare function index:makeMarginalCitetrail($node as element()) as xs:string {
+(: Marginal citeID: "nX" where X is the anchor used (if it is alphanumeric) and "nXY" where Y is the number of times that X occurs inside the current div
+    (important: nodes are citeID children of div (not of p) and are counted as such) :)
+declare function index:makeMarginalCiteID($node as element()) as xs:string {
     let $currentSection := sutil:copy(index:getCitableParent($node))
     let $currentNode := $currentSection//*[@xml:id eq $node/@xml:id]
     let $label :=
@@ -361,10 +444,10 @@ the section on node indexing in the docs/technical.md documentation file.
 :)
 
 (:
-~ Determines which nodes serve for "passagetrail" production.
+~ Determines which nodes serve for "label" production.
 :)
 (: NOTE: the tei:text[@type eq 'completeWork'] node is NOT part of the index itself :)
-declare function index:isPassagetrailNode($node as element()) as xs:boolean {
+declare function index:isLabelNode($node as element()) as xs:boolean {
     boolean(
         index:isIndexNode($node) and
         (
@@ -397,9 +480,9 @@ declare function index:isIndexNode($node as node()) as xs:boolean {
 };
 
 (:
-~ Determines whether a node is a specific citetrail element, i.e. one that is specially prefixed in citetrails.
+~ Determines whether a node is a specific citeID element, i.e. one that is specially prefixed in citeID.
 :)
-declare function index:isNamedCitetrailNode($node as element()) as xs:boolean {
+declare function index:isNamedCiteIDNode($node as element()) as xs:boolean {
     boolean(
         index:isAnchorNode($node) or
         index:isPageNode($node) or
@@ -407,7 +490,8 @@ declare function index:isNamedCitetrailNode($node as element()) as xs:boolean {
         (index:isStructuralNode($node) 
             and $node[self::tei:text[@type eq 'work_volume'] or 
                       self::tei:back or 
-                      self::tei:front]) or (: TODO: include div here? :)
+                      self::tei:front or
+                      self::tei:argument]) or (: TODO: include div here? :)
         (index:isMainNode($node) 
             and $node[self::tei:head or 
                       self::tei:titlePage]) or
@@ -418,11 +502,11 @@ declare function index:isNamedCitetrailNode($node as element()) as xs:boolean {
 };
 
 (:
-~ Determines whether a node is a 'generic' citetrail element, i.e. one that isn't specially prefixed in citetrails.
-~ --> complement of index:isNamedCitetrailNode()
+~ Determines whether a node is a 'generic' citeID element, i.e. one that isn't specially prefixed in citeID.
+~ --> complement of index:isNamedCiteIDNode()
 :)
-declare function index:isUnnamedCitetrailNode($node as element()) as xs:boolean {
-    index:isIndexNode($node) and not(index:isNamedCitetrailNode($node))
+declare function index:isUnnamedCiteIDNode($node as element()) as xs:boolean {
+    index:isIndexNode($node) and not(index:isNamedCiteIDNode($node))
 };
 
 (:
@@ -507,12 +591,14 @@ declare function index:isListNode($node as node()) as xs:boolean {
 
 (:
 ~ Structural nodes are high-level nodes containing any of the other types of nodes (main, marginal, anchor nodes).
+Line 584: [not(./(ancestor::tei:front || ancestor::tei:back))] added to resolve a HTML problem (#6459: <front> displayed twice)
 :)
 declare function index:isStructuralNode($node as node()) as xs:boolean {
     boolean(
         $node/@xml:id and
         (
             $node/self::tei:div[@type ne "work_part"] or (: TODO: comment out for div label experiment :)
+            $node/self::tei:argument[not(ancestor::tei:list)] or
             $node/self::tei:back or
             $node/self::tei:front or
             $node/self::tei:text[@type eq 'work_volume']
@@ -520,6 +606,18 @@ declare function index:isStructuralNode($node as node()) as xs:boolean {
     )
 };
 
+declare function index:isPotentialFragmentNode($node as node()) as xs:boolean {
+    boolean($node/self::tei:front |
+        $node/self::tei:back |
+            $node/self::tei:div[not($node/ancestor::tei:front | $node/ancestor::tei:back)] |
+        $node/self::tei:argument[not($node/ancestor::tei:list)] |
+        $node/self::tei:text[@type        = ('work_monograph', 'work_volume')]
+ )
+};
+
+declare function index:isBestDepth($node as node(), $fragmentationDepth as xs:integer) as xs:boolean {
+    boolean(not($node/descendant::tei:*[index:isPotentialFragmentNode(.)][count(./ancestor-or-self::tei:*)                                       le $fragmentationDepth]))    
+};
 
 (:
 ~ Basic nodes represent *all* container nodes at the bottom of the index tree, i.e. mixed-content elements 
@@ -527,20 +625,16 @@ declare function index:isStructuralNode($node as node()) as xs:boolean {
     To be used for Sphinx snippets, for checking consistency etc.
 :)
 declare function index:isBasicNode($node as node()) as xs:boolean {
-    boolean(
+ boolean(
         index:isMainNode($node) or
-        index:isMarginalNode($node) or
-        (:(index:isListNode($node) and not($node/descendant::*[index:isListNode(.)])):)
-        (index:isListNode($node) and (($node/self::tei:list and not($node/descendant::tei:list))
-                                       or ($node[(self::tei:item or self::tei:head or self::tei:argument) 
-                                                 and not(descendant::tei:list) 
-                                                 and following-sibling::tei:item[./tei:list[index:isListNode(.)]]])
-                                      )
+                                                 index:isMarginalNode($node) or
+                                                 (:(index:isListNode($node) and not($node/descendant::*[index:isListNode(.)])):)
+ $node[self::tei:item | self::tei:head[ancestor::tei:list] | self::tei:argument[ancestor::tei:list] ]                                      
         (: read as: 'lists that do not contain lists (=lists at the lowest level), or siblings thereof' :)
         (: (this is quite a complicated XPath, but I don't know how to simplify it without breaking things...) :)
         )
-    )
 };
+
 
 
 declare function index:getNodeCategory($node as element()) as xs:string {
@@ -554,8 +648,8 @@ declare function index:getNodeCategory($node as element()) as xs:string {
 };
 
 
-declare function index:makeUrl($targetWorkId as xs:string, $targetNode as node(), $fragmentIds as map()) {
-    let $targetNodeId := string($targetNode/@xml:id)
+declare function index:makeUrl($targetWorkId as xs:string, $targetNode as node(), $fragmentIds as map(*)) {
+    let $targetNodeId := $targetNode/@xml:id/string()
     let $viewerPage   :=      
         if (substring($targetWorkId, 1, 2) eq 'W0') then
             'work.html?wid='
@@ -581,8 +675,13 @@ declare function index:makeUrl($targetWorkId as xs:string, $targetNode as node()
 ~  @param mode: must be one of 'orig', 'edit' (default)
 :)
 declare function index:makeTeaserString($node as element(), $mode as xs:string?) as xs:string {
-    let $thisMode := if ($mode = ('orig', 'edit')) then $mode else 'edit'
-    let $string := normalize-space(replace(replace(string-join(txt:dispatch($node, $thisMode)), '\[.*?\]', ''), '\{.*?\}', ''))
+(:  replaced the following to solve the empty lables problem in iiif manifests 
+    let $thisMode := if ($mode = ('orig', 'edit')) then $mode else 'edit' :)
+    let $thisMode := if ($mode = 'edit') then $mode else 'orig'
+    let $string := normalize-space(string-join(txt:dispatch($node, $thisMode), ''))
+(: replaced the following with the above for performance reasons on 2021-04-28 ...
+    let $string := normalize-space(replace(replace(string-join(txt:dispatch($node, $thisMode), ''), '\[.*?\]', ''), '\{.*?\}', ''))
+:)
     return 
         if (string-length($string) gt $config:chars_summary) then
             concat('&#34;', normalize-space(substring($string, 1, $config:chars_summary)), '…', '&#34;')
@@ -592,7 +691,7 @@ declare function index:makeTeaserString($node as element(), $mode as xs:string?)
 
 
 declare function index:makeFragmentId($index as xs:integer, $xmlId as xs:string) as xs:string {
-    format-number($index, '0000') || '_' || $xmlId
+    format-number($index, '00000') || '_' || $xmlId
 };
 
 
@@ -601,8 +700,8 @@ declare function index:makeFragmentId($index as xs:integer, $xmlId as xs:string)
 
 (:  MODES: 
 ~   - 'title': title of a node/section (only for nodes that represent sections)
-~   - 'passagetrail': passagetrail ID of a node (only for nodes that represent passagetrail sections)
-~   - 'citetrail': citetrail ID of a node (only for nodes that are index:isNamedCitetrailNode() - all other are created at index time)
+~   - 'label': label of a node (only for nodes that represent label sections)
+~   - 'citeID': citeID ID of a node (only for nodes that are index:isNamedCiteIDNode() - all other are created at index time)
 ~   - 'class': i18n class of a node, usually to be used by HTML-/RDF-related functionalities for generating verbose labels when displaying section titles 
 :)
 
@@ -649,18 +748,29 @@ declare function index:dispatch($node as node(), $mode as xs:string) {
         default return ()
 };
 
-
 (: ####++++ Element functions (ordered alphabetically) ++++#### :)
-
 
 declare function index:argument($node as element(tei:argument), $mode as xs:string) {
     switch($mode)
+        case 'title' return
+            normalize-space(
+                if ($node/@n and not(matches($node/@n, '^[0-9\[\]]+$'))) then
+                    '"' || string($node/@n) || '"'
+                else if ($node/(tei:head|tei:label)) then
+                    index:makeTeaserString(($node/(tei:head|tei:label))[1], 'orig')
+                else
+                    $config:citationLabels(local-name($node))?('abbr')
+            )
         case 'class' return 
             'tei-' || local-name($node)
+        case 'citeID' return
+            let $abbr := $config:citationLabels(local-name($node))?('abbr')
+            return lower-case(if (contains($abbr, '.')) then substring-before($config:citationLabels(local-name($node))?('abbr'), '.') else $abbr)
+        case 'label' return
+                lower-case($config:citationLabels(local-name($node))?('abbr')) (: TODO: upper-casing with first element of label ? :)
         default return
             ()
 };
-
 
 declare function index:back($node as element(tei:back), $mode as xs:string) {
     switch($mode)
@@ -668,14 +778,13 @@ declare function index:back($node as element(tei:back), $mode as xs:string) {
             ()
         case 'class' return
             'tei-' || local-name($node)
-        case 'citetrail' return
+        case 'citeID' return
             'backmatter'
-        case 'passagetrail' return
+        case 'label' return
             $config:citationLabels(local-name($node))?('abbr')
         default return
             ()
 };
-
 
 declare function index:body($node as element(tei:body), $mode as xs:string) {
     switch($mode)
@@ -685,7 +794,6 @@ declare function index:body($node as element(tei:body), $mode as xs:string) {
             ()
 };
 
-
 declare function index:div($node as element(tei:div), $mode as xs:string) {
     switch($mode)
         case 'title' return
@@ -693,24 +801,24 @@ declare function index:div($node as element(tei:div), $mode as xs:string) {
                 if ($node/@n and not(matches($node/@n, '^[0-9\[\]]+$'))) then
                     '"' || string($node/@n) || '"'
                 else if ($node/(tei:head|tei:label)) then
-                    index:makeTeaserString(($node/(tei:head|tei:label))[1], 'edit')
+                    index:makeTeaserString(($node/(tei:head|tei:label))[1], 'orig')
                 (: purely numeric section titles: :)
                 else if ($node/@n and (matches($node/@n, '^[0-9\[\]]+$')) and ($node/@type)) then
                     string($node/@n)
                 (: otherwise, try to derive a title from potential references to the current node :)
                 else if ($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)]) then
-                    index:makeTeaserString($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)][1], 'edit')
+                    index:makeTeaserString($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)][1], 'orig')
                 (: if there is a list/head and nothing else works, we may use that :)
                 else if ($node/tei:list/(tei:head|tei:label)) then
-                    index:makeTeaserString(($node/tei:list/(tei:head|tei:label))[1], 'edit')
+                    index:makeTeaserString(($node/tei:list/(tei:head|tei:label))[1], 'orig')
                 else ()
             )
             
         case 'class' return
             'tei-div-' || $node/@type
         
-        case 'citetrail' return
-            if (index:isNamedCitetrailNode($node)) then
+        case 'citeID' return
+            if (index:isNamedCiteIDNode($node)) then
                 (: use abbreviated form of @type (without dot), possibly followed by position :)
                 (: TODO: div label experiment (delete the following block if this isn't deemed plausible) :)
                 let $abbr := $config:citationLabels($node/@type)?('abbr')
@@ -725,9 +833,9 @@ declare function index:div($node as element(tei:div), $mode as xs:string) {
                 return $prefix || $position
             else error()
         
-        case 'passagetrail' return
-            if (index:isPassagetrailNode($node)) then
-                let $prefix := lower-case($config:citationLabels($node/@type)?('abbr')) (: TODO: upper-casing with first element of passagetrail ? :)
+        case 'label' return
+            if (index:isLabelNode($node)) then
+                let $prefix := lower-case($config:citationLabels($node/@type)?('abbr')) (: TODO: upper-casing with first element of label ? :)
                 return 
                     if ($node/@type = ('lecture', 'gloss')) then (: TODO: 'lemma'? :)
                         (: special cases: with these types, we provide a short teaser string instead of a numeric value :)
@@ -736,11 +844,11 @@ declare function index:div($node as element(tei:div), $mode as xs:string) {
                     else
                         let $position := 
                             if ($node/@n[matches(., '^[0-9\[\]]+$')]) then $node/@n (:replace($node/@n, '[\[\]]', '') ? :)
-                            else if ($node/ancestor::*[index:isPassagetrailNode(.)]) then
+                            else if ($node/ancestor::*[index:isLabelNode(.)]) then
                                 (: using the none-copy version here for sparing memory: :)
-                                if (count($node/ancestor::*[index:isPassagetrailNode(.)][1]//tei:div[@type eq $node/@type and index:isPassagetrailNode(.)]) gt 1) then 
-                                    string(count($node/ancestor::*[index:isPassagetrailNode(.)][1]//tei:div[@type eq $node/@type and index:isPassagetrailNode(.)]
-                                                 intersect $node/preceding::tei:div[@type eq $node/@type and index:isPassagetrailNode(.)]) + 1)
+                                if (count($node/ancestor::*[index:isLabelNode(.)][1]//tei:div[@type eq $node/@type and index:isLabelNode(.)]) gt 1) then 
+                                    string(count($node/ancestor::*[index:isLabelNode(.)][1]//tei:div[@type eq $node/@type and index:isLabelNode(.)]
+                                                 intersect $node/preceding::tei:div[@type eq $node/@type and index:isLabelNode(.)]) + 1)
                                 else ()
                             else if (count($node/parent::*/tei:div[@type eq $node/@type]) gt 1) then 
                                 string(count($node/preceding-sibling::tei:div[@type eq $node/@type]) + 1)
@@ -753,7 +861,6 @@ declare function index:div($node as element(tei:div), $mode as xs:string) {
             ()
 };
 
-
 declare function index:front($node as element(tei:front), $mode as xs:string) {
     switch ($mode)
         case 'title' return
@@ -762,29 +869,28 @@ declare function index:front($node as element(tei:front), $mode as xs:string) {
         case 'class' return
             'tei-' || local-name($node)
             
-        case 'citetrail' return
+        case 'citeID' return
             'frontmatter'
             
-        case 'passagetrail' return
+        case 'label' return
             $config:citationLabels(local-name($node))?('abbr')
             
         default return
             ()
 };
 
-
 (: FIXME: In the following, the #anchor does not take account of html partitioning of works. Change this to use semantic section id's. :)
 declare function index:head($node as element(tei:head), $mode as xs:string) {
     switch($mode)
         case 'title' return
             normalize-space(
-                index:makeTeaserString($node, 'edit')
+                index:makeTeaserString($node, 'orig')
             )
         
         case 'class' return
             'tei-' || local-name($node)
         
-        case 'citetrail' return
+        case 'citeID' return
             'heading' ||
             (if (count($node/parent::*/tei:head) gt 1) then          
                 (: we have several headings on this level of the document ... :)
@@ -812,22 +918,22 @@ declare function index:item($node as element(tei:item), $mode as xs:string) {
                 else if ($node/@n and not(matches($node/@n, '^[0-9\[\]]+$'))) then
                     '"' || string($node/@n) || '"'
                 else if ($node/(tei:head|tei:label)) then
-                    index:makeTeaserString(($node/(tei:head|tei:label))[1], 'edit')
+                    index:makeTeaserString(($node/(tei:head|tei:label))[1], 'orig')
                 (: purely numeric section titles: :)
                 else if ($node/@n and (matches($node/@n, '^[0-9\[\]]+$'))) then
                     $node/@n/string()
                 (: otherwise, try to derive a title from potential references to the current node :)
                 else if ($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)]) then
-                    index:makeTeaserString($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)][1], 'edit')
+                    index:makeTeaserString($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)][1], 'orig')
                 else ()
             )
         
         case 'class' return
             'tei-' || local-name($node)
             
-        case 'citetrail' return
+        case 'citeID' return
             (: "entryX" where X is the section title (index:item($node, 'title')) in capitals, use only for items in indexes and dictionary :)
-            if(index:isNamedCitetrailNode($node)) then
+            if(index:isNamedCiteIDNode($node)) then
                 let $title := upper-case(replace(index:item($node, 'title'), '[^a-zA-Z0-9]', ''))
                 let $position :=
                     if ($title) then
@@ -842,33 +948,31 @@ declare function index:item($node as element(tei:item), $mode as xs:string) {
                 return 'entry' || $title || $position
             else error() 
         
-        case 'passagetrail' return
+        case 'label' return
             ()
         
         default return
             ()
 };
 
-
 declare function index:label($node as element(tei:label), $mode as xs:string) {
     switch($mode)
         case 'title' return
             normalize-space(
-                index:makeTeaserString($node, 'edit')
+                index:makeTeaserString($node, 'orig')
             )
           
         case 'class' return
             'tei-' || local-name($node)
             
-        case 'citetrail' return
-            if (index:isNamedCitetrailNode($node)) then
-                index:makeMarginalCitetrail($node)
+        case 'citeID' return
+            if (index:isNamedCiteIDNode($node)) then
+                index:makeMarginalCiteID($node)
             else error()
             
         default return
             ()
 };
-
 
 declare function index:list($node as element(tei:list), $mode as xs:string) {
     switch($mode)
@@ -877,25 +981,25 @@ declare function index:list($node as element(tei:list), $mode as xs:string) {
                 if ($node/@n and not(matches($node/@n, '^[0-9\[\]]+$'))) then
                     '"' || string($node/@n) || '"'
                 else if ($node/(tei:head|tei:label)) then
-                    index:makeTeaserString(($node/(tei:head|tei:label))[1], 'edit')
+                    index:makeTeaserString(($node/(tei:head|tei:label))[1], 'orig')
                 (: purely numeric section titles: :)
                 else if ($node/@n and (matches($node/@n, '^[0-9\[\]]+$')) and ($node/@type)) then
                     $node/@n/string()
                 (: otherwise, try to derive a title from potential references to the current node :)
                 else if ($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)]) then
-                    index:makeTeaserString($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)][1], 'edit')
+                    index:makeTeaserString($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)][1], 'orig')
                 else ()
             )
         
         case 'class' return
             'tei-' || local-name($node)
             
-        case 'passagetrail' return
+        case 'label' return
             ()
         
-        case 'citetrail' return
+        case 'citeID' return
             (: dictionaries, indices and summaries get their type prepended to their number :)
-            if(index:isNamedCitetrailNode($node)) then
+            if(index:isNamedCiteIDNode($node)) then
                 let $currentSection := sutil:copy($node/(ancestor::tei:div|ancestor::tei:body|ancestor::tei:front|ancestor::tei:back)[last()])
                 let $currentNode := $currentSection//tei:list[@xml:id eq $node/@xml:id]
                 return
@@ -912,18 +1016,17 @@ declare function index:list($node as element(tei:list), $mode as xs:string) {
             ()
 };
 
-
 declare function index:lg($node as element(tei:lg), $mode as xs:string) {
     switch($mode)
         case 'title' return
             normalize-space(
-                index:makeTeaserString($node, 'edit')
+                index:makeTeaserString($node, 'orig')
             )
             
         case 'class' return
             'tei-' || local-name($node)
             
-        case 'citetrail' return
+        case 'citeID' return
             error()
             
         default return
@@ -947,14 +1050,14 @@ declare function index:milestone($node as element(tei:milestone), $mode as xs:st
                     $node/@n/string()
                 (: otherwise, try to derive a title from potential references to the current node :)
                 else if ($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)]) then
-                    index:makeTeaserString($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)][1], 'edit')
+                    index:makeTeaserString($node/ancestor::tei:TEI//tei:ref[@target = concat('#', $node/@xml:id)][1], 'orig')
                 else ()
             )
             
         case 'class' return
             'tei-ms-' || $node/@unit
             
-        case 'citetrail' return
+        case 'citeID' return
             (: "XY" where X is the unit and Y is the anchor or the number of milestones where this occurs :)
             let $currentSection := sutil:copy(index:getCitableParent($node))
             let $currentNode := $currentSection//tei:milestone[@xml:id eq $node/@xml:id]
@@ -971,18 +1074,18 @@ declare function index:milestone($node as element(tei:milestone), $mode as xs:st
                     return $currentNode/@unit || upper-case(replace($currentNode/@n, '[^a-zA-Z0-9]', '')) || $position
                 else $currentNode/@unit || string(count($currentNode/preceding::tei:milestone[@unit eq $node/@unit] intersect $currentSection//tei:milestone[@unit eq $currentNode/@unit]) + 1)
         
-        case 'passagetrail' return
-            if (index:isPassagetrailNode($node)) then
+        case 'label' return
+            if (index:isLabelNode($node)) then
                 (: TODO: ATM milestone/@unit = ('article', 'section') resolves to the same abbrs as div/@type = ('article', 'section') :)
                 (: TODO: if @n is numeric, always resolve to 'num.' ? :)
                 let $prefix := lower-case($config:citationLabels($node/@unit)?('abbr'))
                 let $num := 
                     if ($node/@n[matches(., '^[0-9\[\]]+$')]) then $node/@n (:replace($node/@n, '[\[\]]', '') ? :)
                     else 
-                        let $currentSection := sutil:copy($node/ancestor::*[index:isPassagetrailNode(.) and not(self::tei:p)][1])
+                        let $currentSection := sutil:copy($node/ancestor::*[index:isLabelNode(.) and not(self::tei:p)][1])
                         let $currentNode := $currentSection//tei:milestone[@xml:id eq $node/@xml:id]
-                        let $position := count($currentSection//tei:milestone[@unit eq $currentNode/@unit and index:isPassagetrailNode(.)]
-                                               intersect $currentNode/preceding::tei:milestone[@unit eq $currentNode/@unit and index:isPassagetrailNode(.)]) + 1
+                        let $position := count($currentSection//tei:milestone[@unit eq $currentNode/@unit and index:isLabelNode(.)]
+                                               intersect $currentNode/preceding::tei:milestone[@unit eq $currentNode/@unit and index:isLabelNode(.)]) + 1
                         return string($position)
                 return
                     $prefix || ' ' || $num
@@ -990,7 +1093,6 @@ declare function index:milestone($node as element(tei:milestone), $mode as xs:st
         
         default return () (: also for snippets-orig, snippets-edit :)
 };
-
 
 declare function index:note($node as element(tei:note), $mode as xs:string) {
     switch($mode)
@@ -1015,13 +1117,14 @@ declare function index:note($node as element(tei:note), $mode as xs:string) {
         case 'class' return
             'tei-' || local-name($node)
         
-        case 'citetrail' return
-            index:makeMarginalCitetrail($node)
+        case 'citeID' return
+            index:makeMarginalCiteID($node)
         
-        case 'passagetrail' return
-            if (index:isPassagetrailNode($node)) then
-                (: passagetrail parents of note are div, not p :)
-                let $currentSection := sutil:copy($node/ancestor::*[index:isPassagetrailNode(.) and not(self::tei:p)][1])
+        case 'label' return
+            if (index:isLabelNode($node)) then
+                (: label parents of note are div, not p :)
+                let $debug := console:log("index:note/label for note: " || $node/@xml:id/string())
+                let $currentSection := sutil:copy($node/ancestor::*[not(self::tei:p)][index:isLabelNode(.)][1])
                 let $currentNode := $currentSection//tei:note[@xml:id eq $node/@xml:id]
                 let $prefix := $config:citationLabels(local-name($node))?('abbr')
                 let $label := 
@@ -1035,22 +1138,20 @@ declare function index:note($node as element(tei:note), $mode as xs:string) {
             ()
 };
 
-
 declare function index:p($node as element(tei:p), $mode as xs:string) {
     switch($mode)
         case 'title' return
-            normalize-space(
-                index:makeTeaserString($node, 'edit')
-            )
-        
+            index:makeTeaserString($node, 'orig')
+            
         case 'class' return
             'tei-' || local-name($node)
         
-        case 'citetrail' return
-            error()
+        case 'citeID' return
+            let $result := string(count($node/preceding-sibling::* intersect $node/parent::*/(tei:p|tei:list)) + 1)
+        return $result
         
-        case 'passagetrail' return
-            if (index:isPassagetrailNode($node)) then
+        case 'label' return
+            if (index:isLabelNode($node)) then
                 let $prefix := $config:citationLabels(local-name($node))?('abbr')
                 let $teaser := '"' || normalize-space(substring(substring-after(index:p($node, 'title'), '"'),1,15)) || '…"'(: short teaser :)
                 return $prefix || ' ' || $teaser
@@ -1060,11 +1161,9 @@ declare function index:p($node as element(tei:p), $mode as xs:string) {
             ()
 };
 
-
 (:declare function index:passthru($nodes as node()*, $mode as xs:string) as item()* {
     for $node in $nodes/node() return index:dispatch($node, $mode)
 };:)
-
 
 declare function index:pb($node as element(tei:pb), $mode as xs:string) {
     switch($mode)
@@ -1086,7 +1185,7 @@ declare function index:pb($node as element(tei:pb), $mode as xs:string) {
         case 'class' return
             'tei-' || local-name($node)
         
-        case 'citetrail' return
+        case 'citeID' return
             (: "pagX" where X is page number :)
             concat('p',
                 if (matches($node/@n, '[\[\]A-Za-z0-9]') 
@@ -1101,14 +1200,15 @@ declare function index:pb($node as element(tei:pb), $mode as xs:string) {
                -> for example, with repetitive page numbers in the appendix 
                 (ideally, such collisions should be resolved in TEI markup, but one never knows...) :)
         
-        case 'passagetrail' return
+        case 'label' return
             if (contains($node/@n, 'fol.')) then $node/@n/string()
             else 'p. ' || $node/@n/string()
         
         (: pb nodes are good candidates for tracing the speed/performance of document processing, 
             since they are equally distributed throughout a document :)
         case 'debug' return
-            util:log('warn', '[INDEX] Processing tei:pb node ' || $node/@xml:id)
+            let $debug := console:log('[INDEX] Processing tei:pb node ' || $node/@xml:id)
+            return util:log('info', '[INDEX] Processing tei:pb node ' || $node/@xml:id)
         
         default return ()
 };
@@ -1117,39 +1217,37 @@ declare function index:signed($node as element(tei:signed), $mode as xs:string) 
     switch($mode)
         case 'title' return
             normalize-space(
-                index:makeTeaserString($node, 'edit')
+                index:makeTeaserString($node, 'orig')
             )
         
         case 'class' return
             'tei-' || local-name($node)
             
-        case 'citetrail' return
+        case 'citeID' return
             error()
             
         default return
             ()
 };
-
 
 declare function index:table($node as element(tei:table), $mode as xs:string) {
     switch($mode)
         case 'title' return
             if ($node/tei:head) then
                 normalize-space(
-                    index:makeTeaserString($node/tei:head, 'edit')
+                    index:makeTeaserString($node/tei:head, 'orig')
                 )
             else ()
             
         case 'class' return
             'tei-' || local-name($node)
             
-        case 'citetrail' return
+        case 'citeID' return
             error()
             
         default return
             ()
 };
-
 
 declare function index:text($node as element(tei:text), $mode as xs:string) {
     switch($mode)
@@ -1171,21 +1269,20 @@ declare function index:text($node as element(tei:text), $mode as xs:string) {
             else if (matches($node/@xml:id, 'work_part_[a-z]')) then 'elem-text-' || $node/@xml:id
             else 'tei-text'
         
-        case 'citetrail' return
+        case 'citeID' return
             (: "volX" where X is the current volume number, don't use it at all for monographs :)
             if ($node/@type eq 'work_volume') then
                concat('vol', count($node/preceding::tei:text[@type eq 'work_volume']) + 1)
             else ()
         
-        case 'passagetrail' return
-            if (index:isPassagetrailNode($node)) then
+        case 'label' return
+            if (index:isLabelNode($node)) then
                 'vol. ' || $node/@n
             else ()
         
         default return
             ()
 };
-
 
 declare function index:titlePage($node as element(tei:titlePage), $mode as xs:string) {
     switch($mode)
@@ -1206,12 +1303,12 @@ declare function index:titlePage($node as element(tei:titlePage), $mode as xs:st
         case 'class' return
             'tei-' || local-name($node)
         
-        case 'citetrail' return
+        case 'citeID' return
             if (count($node/ancestor::tei:front//tei:titlePage) gt 1) then
                 'titlepage' || string(count($node/preceding-sibling::tei:titlePage) + 1)
             else 'titlepage'
         
-        case 'passagetrail' return
+        case 'label' return
             $config:citationLabels(local-name($node))?('abbr')
         
         default return
@@ -1222,17 +1319,16 @@ declare function index:titlePart($node as element(tei:titlePart), $mode as xs:st
     switch($mode)
         case 'title' return
             normalize-space(
-                index:makeTeaserString($node, 'edit')
+                index:makeTeaserString($node, 'orig')
             )
             
         case 'class' return
             'tei-' || local-name($node)
             
-        case 'citetrail' return
+        case 'citeID' return
             (: "titlePage.X" where X is the number of parts where this occurs :)
             concat('titlepage.', string(count($node/preceding-sibling::tei:titlePart) + 1))
         
         default return 
             ()
 };
-

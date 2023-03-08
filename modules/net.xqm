@@ -7,25 +7,29 @@ xquery version "3.1";
 
  ----++++#### :)
 
-
 module namespace net                = "http://www.salamanca.school/xquery/net";
-import module namespace console     = "http://exist-db.org/xquery/console";
-import module namespace functx      = "http://www.functx.com";
-import module namespace request     = "http://exist-db.org/xquery/request";
-import module namespace response    = "http://exist-db.org/xquery/response";
-import module namespace util        = "http://exist-db.org/xquery/util";
 
-import module namespace config      = "http://www.salamanca.school/xquery/config"                 at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace export      = "http://www.salamanca.school/xquery/export"                 at "xmldb:exist:///db/apps/salamanca/modules/export.xqm";
-import module namespace sutil    = "http://www.salamanca.school/xquery/sutil" at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
-import module namespace txt        = "https://www.salamanca.school/factory/works/txt" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
-
+declare       namespace array       = "http://www.w3.org/2005/xpath-functions/array";
+declare       namespace err         = "http://www.w3.org/2005/xqt-errors";
 declare       namespace exist       = "http://exist.sourceforge.net/NS/exist";
 declare       namespace output      = "http://www.w3.org/2010/xslt-xquery-serialization";
 declare       namespace rdf         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 declare       namespace rdfs        = "http://www.w3.org/2000/01/rdf-schema#";
 declare       namespace tei         = "http://www.tei-c.org/ns/1.0";
 declare       namespace sal         = "http://salamanca.adwmainz.de";
+
+import module namespace bin         = "http://expath.org/ns/binary";
+import module namespace console     = "http://exist-db.org/xquery/console";
+import module namespace functx      = "http://www.functx.com";
+import module namespace hc          = "http://expath.org/ns/http-client";                   (: ¡¡¡¡ Remember that http-client:send-request returns a *SEQUENCE* of (hc:response, document) - see http://expath.org/modules/http-client/ !!!! :)
+import module namespace request     = "http://exist-db.org/xquery/request";
+import module namespace response    = "http://exist-db.org/xquery/response";
+import module namespace util        = "http://exist-db.org/xquery/util";
+
+import module namespace config      = "http://www.salamanca.school/xquery/config"                 at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
+import module namespace export      = "http://www.salamanca.school/xquery/export"                 at "xmldb:exist:///db/apps/salamanca/modules/export.xqm";
+import module namespace sutil       = "http://www.salamanca.school/xquery/sutil" at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
+import module namespace txt         = "http://www.salamanca.school/factory/works/txt" at "xmldb:exist:///db/apps/salamanca/modules/factory/works/txt.xqm";
 
 declare variable $net:cache-control       := "no";
 
@@ -532,7 +536,7 @@ declare function net:sitemapResponse($netVars as map(*)) {
 declare function net:deliverTextsHTML($netVars as map()*) {
     let $wid := sutil:normalizeId($netVars('paramap')?('wid'))
     let $validation := sutil:WRKvalidateId($wid)
-(:    let $debug := if ($config:debug = "trace") then util:log("warn", "HTML request for work :" || $wid || " ; " || "validation result: " || string($validation)) else ():)
+(:    let $debug := if ($config:debug = "trace") then util:log("info", "HTML request for work :" || $wid || " ; " || "validation result: " || string($validation)) else ():)
     return
         if ($validation eq 2) then (: full text available :)
             net:forward-to-html(substring($netVars('path'), 4), $netVars)
@@ -557,7 +561,7 @@ declare function net:deliverWorkDetailsHTML($netVars as map(*)) {
 
 declare function net:deliverAuthorsHTML($netVars as map()*) {
     let $validation := sutil:AUTvalidateId($netVars('paramap')?('aid'))
-    let $debug := util:log('warn', 'Author id validation: ' || string($validation) || ' ; aid=' || $netVars('paramap')?('aid'))
+    let $debug := util:log('info', 'Author id validation: ' || string($validation) || ' ; aid=' || $netVars('paramap')?('aid'))
     return
         if ($validation eq 1) then () (: TODO author article is available :)
         else if ($validation eq 0) then net:error(404, $netVars, 'author-not-yet-available')

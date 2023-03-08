@@ -1,6 +1,5 @@
 xquery version "3.1";
 
-
 (: ####++++----
 
     Configuration variables defining the application context, and helper functions 
@@ -8,18 +7,20 @@ xquery version "3.1";
 
  ----++++#### :)
 
-
 module namespace config         = "http://www.salamanca.school/xquery/config";
-declare       namespace exist   = "http://exist.sourceforge.net/NS/exist";
+
+declare namespace tei           = "http://www.tei-c.org/ns/1.0";
+
+declare namespace exist         = "http://exist.sourceforge.net/NS/exist";
+declare namespace expath        = "http://expath.org/ns/pkg";
 declare namespace repo          = "http://exist-db.org/xquery/repo";
 declare namespace request       = "http://exist-db.org/xquery/request";
 declare namespace system        = "http://exist-db.org/xquery/system";
-
+declare namespace util          = "http://exist-db.org/xquery/util";
 declare namespace xhtml         = "http://www.w3.org/1999/xhtml";
-declare namespace expath        = "http://expath.org/ns/pkg";
-declare namespace tei           = "http://www.tei-c.org/ns/1.0";
-import module namespace i18n    = "http://exist-db.org/xquery/i18n"     at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
+
 import module namespace console = "http://exist-db.org/xquery/console";
+import module namespace i18n    = "http://exist-db.org/xquery/i18n"     at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
 
 
 (: ==================================================================================== :)
@@ -31,9 +32,10 @@ declare variable $config:contactEMail := "info.salamanca@adwmainz.de";
 declare variable $config:defaultTestserver := 'c106-211.cloud.gwdg.de';
 
 (: Configure Servers :)
-declare variable $config:proto          := if (request:get-header('X-Forwarded-Proto') = "https") then "https" else request:get-scheme();
-declare variable $config:subdomains     := ("www", "blog", "facs", "search", "data", "api", "tei", "id", "files", "ldf", "software");
-declare variable $config:serverdomain := 
+declare variable $config:proto          := "https"; (: if (request:get-header('X-Forwarded-Proto') = "https") then "https" else request:get-scheme(); :)
+declare variable $config:subdomains     := ("www", "blog", "facs", "search", "api", "id", "files");
+declare variable $config:serverdomain   := "salamanca.school";
+(:
     if (substring-before(request:get-header('X-Forwarded-Host'), ".") = $config:subdomains)
         then substring-after(request:get-header('X-Forwarded-Host'), ".")
     else if(request:get-header('X-Forwarded-Host'))
@@ -41,22 +43,23 @@ declare variable $config:serverdomain :=
     else if(substring-before(request:get-server-name(), ".") = $config:subdomains)
         then substring-after(request:get-server-name(), ".")
     else
-        let $fallbackDomain := $config:defaultTestserver (: request:get-server-name() :)
-        let $alert := if ($config:debug = "trace") then console:log("Warning! Dynamic $config:serverdomain is uncertain, using servername " || $fallbackDomain || ".") else ()
+        let $fallbackDomain := $config:defaultTestserver (/: request:get-server-name() :/)
+        (/: let $alert := if ($config:debug = "trace") then console:log("Warning! Dynamic $config:serverdomain is uncertain, using servername " || $fallbackDomain || ".") else () :/)
         return $fallbackDomain
     ;
- 
+:)
+
 (: API :)
 
 declare variable $config:currentApiVersion := 'v1';
 
-declare variable $config:apiEndpoints   := 
+declare variable $config:apiEndpoints   :=
     map  {
         "v1": ("texts", "search", "codesharing", "xtriples")
     };
 (: valid API parameters and values, aligned with the respective 'format' parameter's values; if there is no explicite value 
     stated for a parameter (such as 'q'), the parameter may have any string value (sanitization happens elsewhere) :)
-declare variable $config:apiFormats := 
+declare variable $config:apiFormats :=
     map {
         'html': ('mode=edit', 'mode=orig', 'mode=meta', 'q', 'lang=de', 'lang=en', 'lang=es', 'viewer', 'frag'),
         'iiif': ('canvas'),
@@ -91,12 +94,9 @@ declare variable $config:iiifPresentationServer := $config:imageserver || "/iiif
 declare variable $config:svnserver := "";
 
 (: the digilib image service :)
-(:declare variable $config:digilibServerScaler := "https://c104-131.cloud.gwdg.de:8443/digilib/Scaler/IIIF/svsal!";:)
-declare variable $config:digilibServerScaler := "https://c099-013.cloud.gwdg.de:8443/digilib/Scaler/IIIF/svsal!";
-(:declare variable $config:digilibServerScaler := "https://facs.salamanca.school/iiif/image/";:)
+declare variable $config:digilibServerScaler := "https://c099-013.cloud.gwdg.de/digilib/Scaler/IIIF/svsal!";
 (: the digilib manifest service :)
-(:declare variable $config:digilibServerManifester := "https://c104-131.cloud.gwdg.de:8443/digilib/Manifester/IIIF/svsal!";:)
-declare variable $config:digilibServerManifester := "https://c099-013.cloud.gwdg.de:8443/digilib/Manifester/IIIF/svsal!";
+declare variable $config:digilibServerManifester := "https://c099-013.cloud.gwdg.de/digilib/Manifester/IIIF/svsal!";
 
 declare variable $config:urnresolver    := 'http://nbn-resolving.de/urn/resolver.pl?';
 
@@ -109,7 +109,7 @@ declare variable $config:sphinxRESTURL          := $config:searchserver || "/lem
 declare variable $config:snippetLength          := 1200;    (: How long are snippets with highlighted search results on the search page? :)
 declare variable $config:searchMultiModeLimit   := 5;       (: How many entries of each category are displayed when doing a search in "everything" mode? :)
 
-(: Configure miscalleneous settings :)
+(: Configure miscellaneous settings :)
 declare variable $config:repository-uri := xs:anyURI($config:svnserver || '/04-39/trunk/svsal-data');    (: The svn server holding our data :)
 declare variable $config:lodFormat      := "rdf";
 declare variable $config:defaultLang    := "en";            (: en, es, or de :)
@@ -177,13 +177,14 @@ declare variable $config:citationLabels :=
         'preface': map {'full': 'praefatio', 'abbr': 'praef.', 'isCiteRef': true()},
         'privileges': map {'full': 'privilegium', 'abbr': 'priv.', 'isCiteRef': true()},
         'question': map {'full': 'quaestio', 'abbr': 'q.', 'isCiteRef': true()},
-        'section': map {'full': 'sectio', 'abbr': 'sect.'},
+        'section': map {'full': 'sectio', 'abbr': 'sect.', 'isCiteRef': true()},
         'segment': map {'full': 'sectio', 'abbr': 'sect.', 'isCiteRef': true()}, 
-        'source': map {'full': 'sectio', 'abbr': 'sect.'},
+        'source': map {'full': 'fontes', 'abbr': 'fon.', 'isCiteRef': true()},
         'title': map {'full': 'titulus', 'abbr': 'tit.', 'isCiteRef': true()},
         'unknown': (),
         'work_part': (),
         (: element names (must be different from the div/milestone types/units defined above): :)
+        'argument': map {'full': 'argumentum', 'abbr': 'argum.', 'isCiteRef': true()},
         'back': map {'full': 'appendix', 'abbr': 'append.', 'isCiteRef': true()},
         'front': map {'full': 'front', 'abbr': 'front.'},
         'titlePage': map {'full': 'titulus', 'abbr': 'tit.'},
@@ -216,11 +217,6 @@ declare variable $config:app-root :=
         substring-before($modulePath, "/modules")
 ;
 
-(: Path to the research data repository :)
-declare variable $config:webdata-root := 
-    let $modulePath := replace(system:get-module-load-path(), '^(xmldb:exist://)?(embedded-eXist-server)?(.+)$', '$3')
-    return concat(substring-before($modulePath, "/salamanca/"), "/salamanca-webdata");
-
 declare variable $config:temp           := concat($config:app-root, "/temp");
 declare variable $config:toc-root       := concat($config:app-root, "/toc");
 
@@ -228,32 +224,64 @@ declare variable $config:toc-root       := concat($config:app-root, "/toc");
 declare variable $config:stats-limit    := 15;             (: How many lemmata are evaluated on the stats page? :)
 declare variable $config:stats-root := concat($config:webdata-root, "/stats");
 
+(: Path to the research data repository :)
+declare variable $config:webdata-root :=    "xmldb:exist:///db/apps/salamanca-webdata";
+(:
+    let $descriptor :=
+        collection(repo:get-root())//expath:package[@name = "https://salamanca.school/salamanca-webdata"]
+    return
+        util:collection-name($descriptor);
+:)
+
+(:
+declare variable $config:webdata-root := 
+    let $modulePath := replace(system:get-module-load-path(), '^(xmldb:exist://)?(embedded-eXist-server)?(.+)$', '$3')
+    return concat(substring-before($modulePath, "/salamanca/"), "/salamanca-webdata");
+:)
+
 (: Paths to the TEI data repositories :)
+declare variable $config:tei-root       := "xmldb:exist:///db/apps/salamanca-tei";
+(:
+    let $descriptor :=
+        collection(repo:get-root())//expath:package[@name = "https://salamanca.school/salamanca-tei"]
+    return
+        util:collection-name($descriptor);
+:)
+(:
 declare variable $config:tei-root       := 
     let $modulePath := replace(system:get-module-load-path(), '^(xmldb:exist://)?(embedded-eXist-server)?(.+)$', '$3')
     return concat(substring-before($modulePath, "/salamanca/"), "/salamanca-tei");
+:)
 declare variable $config:tei-authors-root := concat($config:tei-root, "/authors");
 declare variable $config:tei-lemmata-root := concat($config:tei-root, "/lemmata");
 declare variable $config:tei-workingpapers-root := concat($config:tei-root, "/workingpapers");
 declare variable $config:tei-works-root := concat($config:tei-root, "/works");
 declare variable $config:tei-meta-root := concat($config:tei-root, "/meta");
-declare variable $config:tei-sub-roots := ($config:tei-authors-root, $config:tei-lemmata-root, $config:tei-workingpapers-root, $config:tei-works-root);
+declare variable $config:tei-sub-roots          := ($config:tei-authors-root,
+                                                    $config:tei-lemmata-root,
+                                                    $config:tei-workingpapers-root,
+                                                    $config:tei-works-root);
+declare variable $config:tei-specialchars       := doc($config:tei-meta-root || '/specialchars.xml')//tei:charDecl;
 
-declare variable $config:resources-root := concat($config:app-root, "/resources");
-declare variable $config:data-root      := concat($config:app-root, "/data");
-declare variable $config:temp-root := concat($config:data-root, "/temp");
-declare variable $config:html-root      := concat($config:webdata-root, "/html");
-declare variable $config:index-root      := concat($config:webdata-root, "/index");
-declare variable $config:txt-root      := concat($config:webdata-root, "/txt");
-declare variable $config:snippets-root  := concat($config:webdata-root, "/snippets");
 declare variable $config:rdf-root       := concat($config:webdata-root, "/rdf");
 declare variable $config:rdf-works-root := concat($config:rdf-root, '/works');
 declare variable $config:rdf-authors-root := concat($config:rdf-root, '/authors');
 declare variable $config:rdf-lemmata-root := concat($config:rdf-root, '/lemmata');
-declare variable $config:rdf-sub-roots := ($config:rdf-authors-root, $config:rdf-works-root, $config:rdf-lemmata-root);
+declare variable $config:rdf-sub-roots := ($config:rdf-authors-root,
+                                           $config:rdf-works-root,
+                                           $config:rdf-lemmata-root);
+
+declare variable $config:html-root      := concat($config:webdata-root, "/html");
+declare variable $config:index-root     := concat($config:webdata-root, "/index");
+declare variable $config:txt-root       := concat($config:webdata-root, "/txt");
+declare variable $config:snippets-root  := concat($config:webdata-root, "/snippets");
+declare variable $config:resources-root := concat($config:app-root, "/resources");
+declare variable $config:data-root      := concat($config:app-root, "/data");
+declare variable $config:temp-root      := concat($config:data-root, "/temp");
 declare variable $config:iiif-root      := concat($config:webdata-root, "/iiif");
 declare variable $config:files-root     := concat($config:resources-root, "/files");
 declare variable $config:corpus-zip-root := concat($config:webdata-root, '/corpus-zip');
+
 
 declare variable $config:i18n-root := $config:data-root || '/i18n'; (: to be used in i18n:process() :)
 
@@ -295,7 +323,3 @@ declare function config:errorhandler($netVars as map(*)*) {
             <forward url="{$netVars('controller')}/modules/view.xql"/>
         </error-handler>
 };
-
-
-
- 

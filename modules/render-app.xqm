@@ -1,13 +1,17 @@
 xquery version "3.1";
 
 module namespace render-app            = "http://www.salamanca.school/xquery/render-app";
-declare namespace exist            = "http://exist.sourceforge.net/NS/exist";
-declare namespace output           = "http://www.w3.org/2010/xslt-xquery-serialization";
+
 declare namespace tei              = "http://www.tei-c.org/ns/1.0";
 declare namespace sal              = "http://salamanca.adwmainz.de";
+
+declare namespace exist            = "http://exist.sourceforge.net/NS/exist";
+declare namespace output           = "http://www.w3.org/2010/xslt-xquery-serialization";
+
 import module namespace request    = "http://exist-db.org/xquery/request";
+
 import module namespace config     = "http://www.salamanca.school/xquery/config" at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace i18n      = "http://exist-db.org/xquery/i18n"        at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
+import module namespace i18n       = "http://exist-db.org/xquery/i18n"           at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
 
 (:
 ~ A conglomeration of rendering mechanisms for different, not necessarily related parts of the app, such as search help, participants pages, etc.
@@ -644,7 +648,7 @@ declare function render-app:persName($node as element(tei:persName), $mode as xs
         case 'participants' return
             render-app:passthru($node, $mode, $lang)
         default return
-            render-app:name($mode, $node, $lang)
+            render-app:name($node, $mode, $lang)
 };
 
 declare function render-app:placeName($node as element(tei:placeName), $mode as xs:string, $lang as xs:string?) {
@@ -652,7 +656,7 @@ declare function render-app:placeName($node as element(tei:placeName), $mode as 
         case 'participants' return
             render-app:passthru($node, $mode, $lang)
         default return
-            render-app:name($mode, $node, $lang)
+            render-app:name($node, $mode, $lang)
 };
 
 declare function render-app:orgName($node as element(tei:orgName), $mode as xs:string, $lang as xs:string?) {
@@ -660,7 +664,7 @@ declare function render-app:orgName($node as element(tei:orgName), $mode as xs:s
         case 'participants' return
             render-app:passthru($node, $mode, $lang)
         default return
-            render-app:name($mode, $node, $lang)
+            render-app:name($node, $mode, $lang)
 };
 
 declare function render-app:title($node as element(tei:title), $mode as xs:string, $lang as xs:string?) {

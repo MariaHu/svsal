@@ -7,7 +7,7 @@ xquery version "3.1";
 
  ----++++#### :)
 
-module namespace iiif     = "https://www.salamanca.school/factory/works/iiif";
+module namespace iiif     = "http://www.salamanca.school/factory/works/iiif";
 
 declare namespace array   = "http://www.w3.org/2005/xpath-functions/array";
 declare namespace exist   = "http://exist.sourceforge.net/NS/exist";
@@ -50,7 +50,7 @@ declare function iiif:createResource($targetWorkId as xs:string) as map(*) {
 };
 
 declare function iiif:mkMultiVolumeCollection($workId as xs:string, $tei as node()) as map(*) {
-    let $debug := if ($config:debug = "trace") then console:log("iiif:mkMultiVolumeCollection running (" || $workId || " requested) ...") else ()
+(:    let $debug := if ($config:debug = "trace") then console:log("[iiif] iiif:mkMultiVolumeCollection running (" || $workId || " requested) ...") else ():)
     let $id := $config:iiifPresentationServer || "collection/" || $workId
     let $label := string-join(for $a in $tei//tei:titleStmt/tei:author return normalize-space($a), "/") || ": " ||
         normalize-space($tei//tei:titleStmt/tei:title[@type="main"]/text()) || " [multi-volume collection]"
@@ -60,10 +60,10 @@ declare function iiif:mkMultiVolumeCollection($workId as xs:string, $tei as node
 
     (: get manifests for each volume :)
     let $volumeFileNames := for $fileName in $tei/tei:text/tei:group/xi:include/@href return $fileName
-    let $debug := if ($config:debug = "trace") then console:log("Get manifests for " || string-join($volumeFileNames, ', ') || "...") else ()
+    let $debug := if ($config:debug = "trace") then console:log("[iiif] Get manifests for " || string-join($volumeFileNames, ', ') || "...") else ()
 
     let $volumeNodes := for $fileName in $volumeFileNames return doc($config:tei-works-root || '/' || $fileName)//tei:TEI
-    let $debug := if ($config:debug = "trace") then console:log("(These correspond to the following Work-Ids: " || string-join($volumeNodes/@xml:id/string(), ', ') || ").") else ()
+    let $debug := if ($config:debug = "trace") then console:log("[iiif] (These correspond to the following Work-Ids: " || string-join($volumeNodes/@xml:id/string(), ', ') || ").") else ()
 
     let $volumeManifests := for $teiNode in $volumeNodes return iiif:mkSingleVolumeManifest($teiNode/@xml:id, $teiNode, $id)
     let $manifests := array {for $manifest in $volumeManifests return $manifest}
@@ -89,7 +89,7 @@ declare function iiif:mkMultiVolumeCollection($workId as xs:string, $tei as node
 (: includes single-volume works as well as single volumes as part of multi-volume works:)
 (: volumeId: xml:id of TEI node of single TEI file, e.g. "W0004" or "W0013_Vol01" :)
 declare function iiif:mkSingleVolumeManifest($volumeId as xs:string, $teiDoc as node(), $collectionId as xs:string?) {
-    let $debug := if ($config:debug = "trace") then console:log("iiif:mkSingleVolumeManifest running (" || $volumeId || " requested) ...") else ()
+(:    let $debug := if ($config:debug = "trace") then console:log("[iiif] iiif:mkSingleVolumeManifest running (" || $volumeId || " requested) ...") else ():)
     let $tei := util:expand($teiDoc)
     (: File metadata section :)
     let $id := $config:iiifPresentationServer || $volumeId || "/manifest"
@@ -163,8 +163,7 @@ declare function iiif:mkSingleVolumeManifest($volumeId as xs:string, $teiDoc as 
     @tei The TEI node of the volume.
     @thumbnailUrl The complete URL of the thumbnail, as also stated in the "thumbnail" field's "@id" attribute :)
 declare function iiif:mkSequence($volumeId as xs:string, $tei as node(), $thumbnailUrl as xs:string) {
-    let $debug := if ($config:debug = "trace") then console:log("iiif:mkSequence running...") else ()
-
+(:    let $debug := if ($config:debug = "trace") then console:log("[iiif] iiif:mkSequence running...") else ():)
     let $id := $config:iiifPresentationServer || $volumeId || "/sequence/normal"
 
     let $canvases :=
@@ -226,7 +225,7 @@ declare function iiif:mkCanvasFromTeiFacs($volumeId as xs:string, $facs as xs:st
     (: get image height and width from the digilib server (i.e. from each image json file): :)
     let $options := map { "liberal": true(), "duplicates": "use-last" }
     
-    let $debug := if ($config:debug = ('trace')) then console:log('Getting image resource from digilib server: ' || $digilibImageId) else ()
+(:    let $debug := if ($config:debug = ('trace')) then console:log('[iiif] Getting image resource from digilib server: ' || $digilibImageId) else ():)
     let $digilibImageResource := json-doc($digilibImageJsonId, $options)
     
     let $imageHeight := map:get($digilibImageResource, "height")

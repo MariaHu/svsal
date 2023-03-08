@@ -13,14 +13,12 @@ declare namespace tei        = "http://www.tei-c.org/ns/1.0";
 declare namespace sal        = "http://salamanca.adwmainz.de";
 
 declare namespace exist      = "http://exist.sourceforge.net/NS/exist";
-declare namespace http       = "http://expath.org/ns/http-client";
+declare namespace map        = "http://www.w3.org/2005/xpath-functions/map";
 declare namespace opensearch = "http://a9.com/-/spec/opensearch/1.1/";
 declare namespace output     = "http://www.w3.org/2010/xslt-xquery-serialization";
 declare namespace rdf        = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
-declare namespace request    = "http://exist-db.org/xquery/request";
 declare namespace session    = "http://exist-db.org/xquery/session";
 declare namespace srw        = "http://www.loc.gov/zing/srw/";
-declare namespace templates  = "http://exist-db.org/xquery/templates";
 declare namespace transform  = "http://exist-db.org/xquery/transform";
 declare namespace util       = "http://exist-db.org/xquery/util";
 declare namespace xhtml      = "http://www.w3.org/1999/xhtml";
@@ -29,13 +27,22 @@ declare namespace xmldb      = "http://exist-db.org/xquery/xmldb";
 
 import module namespace console    = "http://exist-db.org/xquery/console";
 import module namespace functx     = "http://www.functx.com";
+import module namespace http       = "http://expath.org/ns/http-client";
+import module namespace request    = "http://exist-db.org/xquery/request";
+import module namespace templates  = "http://exist-db.org/xquery/html-templating";
+import module namespace lib        = "http://exist-db.org/xquery/html-templating/lib";
 
 import module namespace config     = "http://www.salamanca.school/xquery/config"     at "xmldb:exist:///db/apps/salamanca/modules/config.xqm";
-import module namespace render-app = "http://www.salamanca.school/xquery/render-app" at "xmldb:exist:///db/apps/salamanca/modules/render-app.xqm";
-import module namespace sphinx     = "http://www.salamanca.school/xquery/sphinx"     at "xmldb:exist:///db/apps/salamanca/modules/sphinx.xqm";
-import module namespace i18n       = "http://exist-db.org/xquery/i18n"               at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
+import module namespace i18n       = "http://exist-db.org/xquery/i18n" at "xmldb:exist:///db/apps/salamanca/modules/i18n.xqm";
+import module namespace render-app = "http://www.salamanca.school/xquery/render-app"     at "xmldb:exist:///db/apps/salamanca/modules/render-app.xqm";
+import module namespace sphinx     = "http://www.salamanca.school/xquery/sphinx"               at "xmldb:exist:///db/apps/salamanca/modules/sphinx.xqm";
 import module namespace iiif       = "http://www.salamanca.school/xquery/iiif"       at "xmldb:exist:///db/apps/salamanca/modules/iiif.xqm";
 import module namespace sutil      = "http://www.salamanca.school/xquery/sutil"      at "xmldb:exist:///db/apps/salamanca/modules/sutil.xqm";
+
+(: declare option output:method            "html5";     :)
+(: declare option output:media-type        "text/html"; :)
+(: declare option output:expand-xincludes  "yes";       :)
+(: declare option output:highlight-matches "both";      :)
 
 (: ============ Helper functions ================= 
  :
@@ -44,12 +51,13 @@ import module namespace sutil      = "http://www.salamanca.school/xquery/sutil" 
  : - dummy test function
  :)
  
+
 (: Concatenates name(s): forename surname:)
 declare function app:rotateFormatName($persName as element()*) as xs:string? {
     let $return-string := for $pers in $persName
                                 return
                                         if ($pers/tei:surname and $pers/tei:forename) then
-                                            normalize-space(concat($pers/tei:forename, ' ', $pers/tei:nameLink, ' ', $pers/tei:surname, if ($pers/tei:addName) then ($config:nbsp || '<' || $pers/tei:addName || '>') else ()))
+                                            normalize-space(concat(string-join($pers/tei:forename, ' '), ' ', string-join($pers/tei:nameLink, ' '), ' ', string-join($pers/tei:surname, ' '), if ($pers/tei:addName) then ($config:nbsp || '<' || string-join($pers/tei:addName, ' ') || '>') else ()))
                                         else if ($pers) then
                                             normalize-space(xs:string($pers))
                                         else 
@@ -232,7 +240,6 @@ declare function app:LEMfinalFacets ($node as node(), $model as map (*), $lang a
 };
 
 (: ==== WORKS-SECTION (with js) ====  :)
-
 declare function app:switchYear ($node as node(), $model as map (*), $lang as xs:string?) {
     let $output := <i18n:text key="year">Jahr</i18n:text>
         return 
@@ -264,8 +271,10 @@ declare function app:switchAvailability ($node as node(), $model as map (*), $la
             $output
 };
 
-declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang as xs:string?) {
-    for $item in (collection($config:tei-works-root)//tei:teiHeader[parent::tei:TEI//tei:text/@type = ("work_monograph", "work_multivolume")])
+declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang as xs:string?) as array(*) {
+    let $debug := if ($config:debug = ("trace")) then console:log("[APP] Building finalFacets (Js) for " || $lang || "...") else ()
+    let $output :=
+        for $item in (collection($config:tei-works-root)//tei:teiHeader[parent::tei:TEI//tei:text/@type = ("work_monograph", "work_multivolume")])
         let $wid            :=  xs:string($item/parent::tei:TEI/@xml:id)
         let $title          :=  $item/tei:fileDesc/tei:titleStmt/tei:title[@type = 'short']
         let $status         :=  xs:string($item/ancestor-or-self::tei:TEI//tei:revisionDesc/@status)
@@ -282,11 +291,11 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
                                        'f_enriched'
                                      )) then "yes"
             else "no"
-        let $wrkLink        :=  'work.html?wid=' || $wid
+        let $wrkLink        :=  $config:idserver || '/texts/' || $wid
 
-        let $name           :=  string-join(for $a in $item/tei:fileDesc/tei:titleStmt/tei:author/tei:persName return sutil:formatName($a), " &amp; ")
-        let $sortName       :=  string-join(for $a in $item/tei:fileDesc/tei:titleStmt/tei:author/tei:persName/tei:surname return sutil:strip-diacritics(lower-case($a)), " &amp; ") (:lower-casing for equal sorting:)
-        let $firstChar      :=  upper-case(substring($item/tei:fileDesc/tei:titleStmt/tei:author[1]//tei:surname, 1, 1))
+        let $name           :=  string-join(for $a in $item//tei:titleStmt/tei:author/tei:persName return sutil:formatName($a), " &amp; ")
+        let $sortName       :=  string-join(for $a in $item//tei:titleStmt/tei:author/tei:persName/tei:surname[1] return sutil:strip-diacritics(lower-case($a)), " &amp; ") (:lower-casing for equal sorting:)
+        let $firstChar      :=  upper-case(substring($item//tei:titleStmt/tei:author[1]//tei:surname[1], 1, 1))
         let $nameFacet      :=       
                  if ($firstChar = ('A','B','C','D','E','F')) then 'A - F'
             else if ($firstChar = ('G','H','I','J','K','L')) then 'G - L'
@@ -294,13 +303,13 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
             else                                                  'S - Z'
 
         let $workDetails    :=  'workDetails.html?wid=' ||  $wid
-        let $DetailsInfo    :=  <i18n:text key="details">Katalogeintrag</i18n:text>
+        let $DetailsInfo    :=  i18n:process(<i18n:text key="details">Katalogeintrag</i18n:text>, $lang, "/db/apps/salamanca/data/i18n", "en")
 
         let $workImages     :=  'viewer_standalone.html?wid=' ||  $wid
-        let $FacsInfo       :=  <i18n:text key="facsimiles">Bildansicht</i18n:text>
+        let $FacsInfo       :=  i18n:process(<i18n:text key="facsimiles">Bildansicht</i18n:text>, $lang, "/db/apps/salamanca/data/i18n", "en")
 
         let $printingPlace  :=  
-            if ($item//tei:pubPlace[@role = 'thisEd']) then $item//tei:pubPlace[@role = 'thisEd'] 
+            if ($item//tei:pubPlace[@role = 'thisEd']) then $item//tei:pubPlace[@role = 'thisEd']
             else $item//tei:pubPlace[@role = 'firstEd']
         let $placeFirstChar :=  substring($printingPlace/@key, 1, 1)
         let $facetPlace     :=       
@@ -309,8 +318,8 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
             else if ($placeFirstChar = ('M','N','O','P','Q','R')) then 'M - R'
             else                                                       'S - Z'
         let $date           :=  
-            if ($item//tei:date[@type = 'thisEd']) then $item//tei:date[@type = 'thisEd'][1]/@when
-            else $item//tei:date[@type = 'firstEd'][1]/@when
+            if ($item//tei:date[@type = 'thisEd']) then xs:integer($item//tei:date[@type = 'thisEd'][1]/@when)
+            else xs:integer($item//tei:date[@type = 'firstEd'][1]/@when)
         let $datefacet      :=       
                  if ($date < 1501) then '1501-1550'
             else if ($date < 1551) then '1501-1550'
@@ -324,22 +333,18 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
             else ': ' || $item//tei:sourceDesc//tei:publisher[@n="firstEd"][1]/tei:persName[1]/tei:surname
 
         let $language       :=
-            if ($item/parent::tei:TEI//tei:text/@xml:lang = 'la') then
-                <i18n:text key="latin">Latein</i18n:text>
-             else
-                <i18n:text key="spanish">Spanisch</i18n:text>
-
-        let $facetAvailability := 
-            if ($WIPstatus eq 'yes') then
-                <i18n:text key="facsimiles">Facsimiles</i18n:text>
-             else
-                <i18n:text key="fullTextAvailable">Full Text (+ Facsimiles)</i18n:text>
-
+            i18n:process(if ($item/parent::tei:TEI//tei:text/@xml:lang = 'la') then                <i18n:text key="latin">Latein</i18n:text>
+             else                <i18n:text key="spanish">Spanisch</i18n:text>
+                            , $lang, "/db/apps/salamanca/data/i18n", "en")
+        let $facetAvailability :=
+            i18n:process(if ($WIPstatus eq 'yes') then                <i18n:text key="facsimiles">Facsimiles</i18n:text>
+             else                <i18n:text key="fullTextAvailable">Full Text (+ Facsimiles)</i18n:text>
+                            , $lang, "/db/apps/salamanca/data/i18n", "en")
         let $completeWork   :=  $item/parent::tei:TEI//tei:text[@xml:id="completeWork"]
         let $volIcon        :=  if ($completeWork/@type='work_multivolume') then 'icon-text' else ()
         let $volLabel       :=  
             if ($completeWork/@type='work_multivolume') then
-                <span><i18n:text key="volumes">Bände</i18n:text> : {$config:nbsp || $config:nbsp}</span>
+                <span>{i18n:process(<i18n:text key="volumes">Bände</i18n:text>, $lang, "/db/apps/salamanca/data/i18n", "en") || ':' || $config:nbsp || $config:nbsp}</span> 
             else ()
         let $volumesString  :=  
             for $volume at $index in util:expand($completeWork)//tei:text[@type="work_volume"]
@@ -347,40 +352,74 @@ declare function app:WRKfinalFacets ($node as node(), $model as map (*), $lang a
                 let $volIdShort := $volume/@n
                 let $volFrag    := sutil:getFragmentID($wid, $volId)
                 let $volLink    := 
-                    if (sutil:WRKisPublished($wid || '_' || $volId)) then 'work.html?wid=' || $wid || "&amp;frag=" || $volFrag || "#" || $volId
+                    if (sutil:WRKisPublished($wid || '_' || $volId)) then $config:idserver || '/texts/' || $wid || ":" || $volId
                     (: existence of link serves as indicator for single volumes' publication status (whether published or not) in works list :)
                     else ()
                 let $volContent := $volIdShort||'&#xA0;&#xA0;'
                 return '"vol' || $index || '":' || '"' || $volLink || '","vol' || $index || 'Cont":'|| '"' ||$volContent ||'",'
+        let $volumesMaps :=               map:merge            ( for         $volume at $index in          util:expand($completeWork)//tei:text[@type="work_volume"]
+            let $volId    := xs:string($volume/@xml:id)
+ let $volIdShort     := $volume/@n
+            let $volFrag        := sutil:getFragmentID($wid, $volId)
+ let         $volLink := 
+            if (sutil:WRKisPublished($wid     || '_' || $volId))      then $config:idserver            || '/texts/'  || $wid || ":"        || $volId
+            (: existence of link serves as indicator for single volumes' publication status (whether published or not) in works list :)
+ else   ()
+ let $volContent :=    $volIdShort||'&#xA0;&#xA0;'
+            return map     { concat("vol", $index) :    $volLink,
+            concat("vol", $index,    "Cont") : $volContent
+ }
+     )
+            return map:merge(    ( map { "title"       : xs:string($title),
+            "status" :       xs:string($status),
+ "WIPstatus" : $WIPstatus,
+            "monoMultiUrl" :          $wrkLink,
+ "workDetails" : $workDetails,
+            "titAttrib" :      $DetailsInfo,
+ "workImages" : $workImages,
+       "facsAttrib" :     $FacsInfo,
+            "printer" :     xs:string($printer),
+ "name" : $name,
+      "sortName" :     $sortName,
+            "nameFacet" :          $nameFacet,
+ "date" : $date,           
+            "chronology" :    $datefacet,
+            "textLanguage" :  $language,
+       "printingPlace" :     xs:string($printingPlace),
+            "facetPlace" : $facetPlace,
+ "facetAvailability" : $facetAvailability,
+            "volLabel" :    $volLabel
+ },
+ $volumesMaps
+ )     )
 
-        let $output :=
-               '&#123;'
-            || '"title":'         || '"' || $title          || '",'
-            || '"disclaimer":'    || '"' || $disclaimer     || '",'
-            || '"status":'        || '"' || $status         || '",'
-            || '"WIPstatus":'     || '"' || $WIPstatus      || '",'
-            || '"monoMultiUrl":'  || '"' || $wrkLink        || '",'
-            || '"workDetails":'   || '"' || $workDetails    || '",'
-            || '"titAttrib":'     || '"' || $DetailsInfo    || '",'
-            || '"workImages":'    || '"' || $workImages     || '",'
-            || '"facsAttrib":'    || '"' || $FacsInfo       || '",'
-            || '"printer":'       || '"' || $printer        || '",'
-            || '"name":'          || '"' || $name           || '",'
-            || '"sortName":'      || '"' || $sortName       || '",'     (:default sorting:)
-            || '"nameFacet":'     || '"' || $nameFacet      || '",'     (:facet I:)
-            || '"date":'          || '"' || $date           || '",'  
-            || '"chronology":'    || '"' || $datefacet      || '",'     (:facet II:)
-            || '"textLanguage":'  || '"' || $language       || '",'     (:facet III:)
-            || '"printingPlace":' || '"' || $printingPlace  || '",'
-            || '"facetPlace":'    || '"' || $facetPlace     || '",'     (:facet IV:)
-            || '"facetAvailability":' || '"' || $facetAvailability || '",'
-(:                              ||'"sourceUrlAll":'   || '"' || $wid            || '",' :)
-            || '"volLabel":'      || '"' || $volLabel       || '",'
-            || string-join($volumesString, '')
-            || '&#125;' || ','
-
-(:        let $dbg := console:log($output) :)
-        return $output
+(:            let $output :=
+                   '&#123;'
+                || '"title":'         || '"' || $title          || '",'
+                || '"status":'        || '"' || $status         || '",'
+                || '"WIPstatus":'     || '"' || $WIPstatus      || '",'
+                || '"monoMultiUrl":'  || '"' || $wrkLink        || '",'
+                || '"workDetails":'   || '"' || $workDetails    || '",'
+                || '"titAttrib":'     || '"' || $DetailsInfo    || '",'
+                || '"workImages":'    || '"' || $workImages     || '",'
+                || '"facsAttrib":'    || '"' || $FacsInfo       || '",'
+                || '"printer":'       || '"' || $printer        || '",'
+                || '"name":'          || '"' || $name           || '",'
+                || '"sortName":'      || '"' || $sortName       || '",'     (\:default sorting:\)
+                || '"nameFacet":'     || '"' || $nameFacet      || '",'     (\:facet I:\)
+                || '"date":'          || '"' || $date           || '",'  
+                || '"chronology":'    || '"' || $datefacet      || '",'     (\:facet II:\)
+                || '"textLanguage":'  || '"' || $language       || '",'     (\:facet III:\)
+                || '"printingPlace":' || '"' || $printingPlace  || '",'
+                || '"facetPlace":'    || '"' || $facetPlace     || '",'     (\:facet IV:\)
+                || '"facetAvailability":' || '"' || $facetAvailability || '",'
+    (\:                              ||'"sourceUrlAll":'   || '"' || $wid            || '",' :\)
+                || '"volLabel":'      || '"' || $volLabel       || '",'
+                || string-join($volumesString, '')
+                || '&#125;' || ','
+:) 
+            let $dbg := if ($config:debug = ("trace")) then            console:log("[APP] app:WRKfinalFacets about to return: " || serialize(array { $output       }, map{"method":"text"}))            else ()
+            return array { $output        }
 };
 
 declare function app:loadWRKfacets ($node as node(), $model as map (*), $lang as xs:string?) {
@@ -392,8 +431,8 @@ declare function app:loadWRKfacets ($node as node(), $model as map (*), $lang as
     doc($config:data-root || "/" || 'works_es.xml')/sal/text()
 };
 
-(:  ==== AUTHORS-LIST (no js) ====  :)
 
+(:  ==== AUTHORS-LIST (no js) ====  :)
 declare %templates:wrap  
     function app:sortAUT ($node as node(), $model as map(*), $lang as xs:string?)  {
 let $output := 
@@ -406,6 +445,7 @@ let $output :=
         </span>
             return 
                 $output
+                (: i18n:process($output, $lang, "/db/apps/salamanca/data/i18n", "en") heute geändert :)
 };        
 
 declare  %templates:wrap
@@ -507,7 +547,6 @@ declare %templates:wrap
 
 
 (:  ==== LEMMATA-LIST (no js) ====  :)
-
 declare %templates:wrap  
     function app:sortLEM ($node as node(), $model as map(*), $lang as xs:string?)  {
         let $output := 
@@ -572,8 +611,9 @@ declare  %templates:wrap
 };
 
 
-(:  ==== WORKING-PAPERS-LIST (no js) ====  :)
-
+(:  
+        ==== WORKING-PAPERS-LIST (no js) ====
+:)
 declare %templates:wrap
         function app:loadListOfWps($node as node(), $model as map(*)) as map(*) {
             let $result := for $item in collection($config:tei-workingpapers-root)/tei:TEI[.//tei:text/@type eq "working_paper"]
@@ -582,10 +622,10 @@ declare %templates:wrap
             return map { 'listOfWps': $result }
 };
 
-(:  ==== WORKS-LIST (no js) ====  :)
-
+(:  
+        ==== WORKS-LIST (no js) ====
+:)
 (:works with noscript. NOTE: this function is ONLY USED ON THE ADMIN PAGE:)
-
 declare %templates:wrap %templates:default("sort", "surname")
         function app:loadListOfWorks($node as node(), $model as map(*), $sort as xs:string) as map(*) {
             let $coll := (collection($config:tei-works-root)//tei:TEI[.//tei:text/@type = ("work_monograph", "work_multivolume")]/tei:teiHeader)
@@ -661,10 +701,11 @@ declare
 
 declare %templates:wrap
     function app:WRKcreateListSurname($node as node(), $model as map(*), $lang as xs:string?) {
-    let $items :=  
+    let $debug :=  if ($config:debug = ("trace")) then console:log("[APP] Building surname-sorted finalFacets (No Js) for " || $lang || "...") else ()
+        return  
         for $item in (collection($config:tei-works-root)//tei:TEI)//tei:text[@type = ('work_monograph', 'work_multivolume')]
             let $root       :=  $item/ancestor::tei:TEI
-            let $id         :=  (session:encode-url( xs:anyURI( 'work.html?wid=' ||  $root/@xml:id ) ))
+            let $id         :=  (session:encode-url( xs:anyURI( $config:idserver ||  '/texts/' || $root/@xml:id ) ))
             let $details    :=  (session:encode-url( xs:anyURI( 'workDetails.html?wid=' ||  $root/@xml:id ) ))
             let $title      :=  $root/tei:teiHeader//tei:sourceDesc/tei:biblStruct/tei:monogr/tei:title[@type = 'short']/string()
             let $author     :=  string-join(for $a in $root/tei:teiHeader//tei:sourceDesc/tei:biblStruct/tei:monogr/tei:author/tei:persName return app:rotateFormatName($a), " &amp; ")
@@ -715,9 +756,11 @@ declare %templates:wrap
 
 declare %templates:wrap
     function app:WRKcreateListTitle($node as node(), $model as map(*), $lang as xs:string?) {
-        let $items      :=  for $item in (collection($config:tei-works-root)//tei:TEI)//tei:text[@type = ('work_monograph', 'work_multivolume')]
+    let $debug      :=  if ($config:debug = ("trace")) then console:log("[APP] Building title-sorted finalFacets (No Js) for " || $lang || "...") else ()
+    return
+        for $item in (collection($config:tei-works-root)//tei:TEI)//tei:text[@type = ('work_monograph', 'work_multivolume')]
                                 let $root       :=  $item/ancestor::tei:TEI
-                                let $id         :=  (session:encode-url( xs:anyURI( 'work.html?wid=' ||  $root/@xml:id ) ))
+                                let $id         :=  (session:encode-url( xs:anyURI( $config:idserver ||  '/texts/' || $root/@xml:id ) ))
                                 let $details    :=  (session:encode-url( xs:anyURI( 'workDetails.html?wid=' ||  $root/@xml:id ) ))
                                 let $title      :=  $root/tei:teiHeader//tei:sourceDesc/tei:biblStruct/tei:monogr/tei:title[@type = 'short']/string()
                                 let $author     :=  string-join(for $a in $root/tei:teiHeader//tei:sourceDesc/tei:biblStruct/tei:monogr/tei:author/tei:persName return app:rotateFormatName($a), " &amp; ")
@@ -764,9 +807,11 @@ declare %templates:wrap
 
 declare %templates:wrap
     function app:WRKcreateListYear($node as node(), $model as map(*), $lang as xs:string?) {
-        let $items      :=  for $item in (collection($config:tei-works-root)//tei:TEI)//tei:text[@type = ('work_monograph', 'work_multivolume')]
+    let $debug      :=  if ($config:debug = ("trace")) then console:log("[APP] Building year-sorted finalFacets (No Js) for " || $lang || "...") else ()
+    return
+        for $item in (collection($config:tei-works-root)//tei:TEI)//tei:text[@type = ('work_monograph', 'work_multivolume')]
                                 let $root       :=  $item/ancestor::tei:TEI
-                                let $id         :=  (session:encode-url( xs:anyURI( 'work.html?wid=' ||  $root/@xml:id ) ))
+                                let $id         :=  (session:encode-url( xs:anyURI( $config:idserver ||  '/texts/' || $root/@xml:id ) ))
                                 let $details    :=  (session:encode-url( xs:anyURI( 'workDetails.html?wid=' ||  $root/@xml:id ) ))
                                 let $title      :=  $root/tei:teiHeader//tei:sourceDesc/tei:biblStruct/tei:monogr/tei:title[@type = 'short']/string()
                                 let $author     :=  string-join(for $a in $root/tei:teiHeader//tei:sourceDesc/tei:biblStruct/tei:monogr/tei:author/tei:persName return app:rotateFormatName($a), " &amp; ")
@@ -814,10 +859,11 @@ declare %templates:wrap
 
 declare %templates:wrap
     function app:WRKcreateListPlace($node as node(), $model as map(*), $lang as xs:string?) {
-    let $items :=  
+    let $debug :=  if ($config:debug = ("trace")) then console:log("[APP] Building place-sorted finalFacets (No Js) for " || $lang || "...") else ()
+    return  
         for $item in (collection($config:tei-works-root)//tei:TEI)//tei:text[@type = ('work_monograph', 'work_multivolume')]
             let $root       :=  $item/ancestor::tei:TEI
-            let $id         :=  (session:encode-url( xs:anyURI( 'work.html?wid=' ||  $root/@xml:id ) ))
+            let $id         :=  (session:encode-url( xs:anyURI( $config:idserver ||  '/texts/' || $root/@xml:id ) ))
             let $details    :=  (session:encode-url( xs:anyURI( 'workDetails.html?wid=' ||  $root/@xml:id ) ))
             let $title      :=  $root/tei:teiHeader//tei:sourceDesc/tei:biblStruct/tei:monogr/tei:title[@type = 'short']/string()
             let $author     :=  string-join(for $a in $root/tei:teiHeader//tei:sourceDesc/tei:biblStruct/tei:monogr/tei:author/tei:persName return app:rotateFormatName($a), " &amp; ")
@@ -960,7 +1006,6 @@ declare %templates:wrap
 (: =========== Load single author, lemma, working paper, work (in alphabetical order) ============= :)
 
 (: ====Author==== :)
-
 declare %templates:default("field", "all")
     function app:loadSingleAuthor($node as node(), $model as map(*), $aid as xs:string?){
     let $context  := if ($aid) then
@@ -1001,7 +1046,6 @@ declare %templates:wrap
 };
 
 (: ====Lemma==== :)
-
 declare %templates:default("field", "all")
     function app:loadSingleLemma($node as node(), $model as map(*), $lid as xs:string?) {
     let $context  := if ($lid) then
@@ -1056,7 +1100,6 @@ declare %public
 };
 
 (: ====Working paper==== :)
-
 declare %templates:default
     function app:loadSingleWp($node as node(), $model as map(*), $wpid as xs:string?){
     let $context  := if ($wpid) then
@@ -1149,6 +1192,7 @@ declare
                                         $lang as xs:string?) {
     let $workId     := if ($wid) then sutil:normalizeId($wid) else $model('currentWorkId')
     let $htmlPath   := $config:html-root || "/" || $workId
+    let $qChecked   := if ($q = ('*', '%2A', '%2a', '&amp;ast;', '&amp;#x2a;', '&amp;#42;', 'lt', 'gt', 'amp')) then () else $q
 
     let $targetFragment := 
         if (xmldb:collection-available($htmlPath)) then
@@ -1169,7 +1213,7 @@ declare
     (: If we have url parameters, fill them all (except frag) in document's links :)
     let $urlParameters := 
         string-join((
-            if (exists($q))      then 'q=' || $q else (),
+            if (exists($qChecked))      then 'q=' || $qChecked else (),
             if (exists($mode))   then 'mode=' || $mode else (),
             if (exists($viewer)) then 'viewer=' || $viewer else (),
             if (exists($lang))   then 'lang=' || $lang else ()
@@ -1182,8 +1226,8 @@ declare
 
     (: If we have an active query string, highlight the original html fragment accordingly :)
     let $outHTML := 
-        if ($q) then 
-            let $highlighted := sphinx:highlight($parametrizedDoc, $q)//item[1]/description
+        if ($qChecked) then 
+            let $highlighted := sphinx:highlight($parametrizedDoc, $qChecked)//item[1]/description
             return 
                 if ($highlighted) then $highlighted else $parametrizedDoc
         else
@@ -1202,16 +1246,17 @@ declare
                 doc($config:html-root || "/" || $workId || "/" || $targetFragment): {substring(serialize(doc($config:html-root || "/" || $workId || "/" || $targetFragment)), 1, 300)}
             </p>
         else ()
+    let $workNotAvailable := <h2><span class="glyphicon glyphicon-file"></span> <i18n:text key="workNotYetAvailable">This work is not yet available.</i18n:text></h2>
 
 return
     if ($targetFragment) then
         <div>
-            { $debugOutput }
+            { (: $debugOutput :) }
             { $outHTML }
         </div>
     else
         (: TODO: redirect to genuine error or resource-not-available page :)
-        <h2><span class="glyphicon glyphicon-file"></span> <i18n:text key="workNotYetAvailable">This work is not yet available.</i18n:text></h2>
+        $workNotAvailable
 };
 
         
@@ -1220,7 +1265,7 @@ return
 ~ (we assume that http links leave the current document and don't need q, mode, viewer or lang params.)
 :)
 declare %private
-    function app:insertParams($node as node(), $params as xs:string?) {
+    function app:insertParams($node as node()?, $params as xs:string?) {
     typeswitch($node)
         case element(a) return
             element {name($node)} {
@@ -1384,179 +1429,12 @@ declare %templates:wrap
             let $firstEd        := $hit//tei:sourceDesc//tei:date[@type = 'firstEd']
             let $thisEd         := $hit//tei:sourceDesc//tei:date[@type = 'thisEd']
             let $ed             := if ($thisEd) then $thisEd else $firstEd
-            let $ref            := session:encode-url(xs:anyURI('work.html?wid=' || $hit/@xml:id))
+            let $ref            := session:encode-url(xs:anyURI('work.html?wid=' || $hit/@xml:id/string()))
             order by $workTitle ascending
             return 
                     <p><a href="{$ref}"><span class="glyphicon glyphicon-file" aria-hidden="true"/>&#xA0;{$workTitle||'&#160;'}({$ed})</a></p>
         return $works
 };
-
-(:declare %public function app:AUTentry($node as node(), $model as map(*), $aid) {
-    app:AUTsummary(doc($config:tei-authors-root || "/" || sutil:normalizeId($aid) || ".xml")//tei:text)
-};
-
-declare function app:AUTsummary($node as node()) as item()* {
-    typeswitch($node)
-        case element(tei:teiHeader) return ()
-        case text() return $node
-        case comment() return $node
-        case element(tei:bibl) return 
-             let $getGetId :=  $node/@sortKey
-                return 
-                    if ($getGetId) then
-                        <span class="{('work hi_'||$getGetId)}">
-                        {if ($node/tei:title/@ref) then
-                            <a target="blank" href="{$node/tei:title/@ref}">{($node/text())}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                        else
-                            <i>{($node/text())}</i>}
-                        </span>    
-                        else()
-        case element(tei:birth) return 
-            <span>
-<!--
-                <a class="anchor" name="{$node/ancestor::tei:div[1]/@xml:id}"></a>
-                <h3>
-                    <a class="anchorjs-link" href="{session:encode-url(xs:anyURI('author.html?aid=' || $node/ancestor::tei:TEI/@xml:id||'#'||$node/ancestor::tei:div[1]/@xml:id||'LifeData'))}">
-                        <span class="anchorjs-icon"></span>
-                    </a><i18n:text key="overview">Lebensdaten</i18n:text>
-                </h3>
-                <p class="autText"><!-/-<i class="fa fa-birthday-cake"></i>-/->*&#xA0;
-                    {app:placeNames($node), ': '||$node/tei:date[1]}
-                </p>
--->
-                *&#xA0;{app:placeNames($node) || ': ' || $node/tei:date[1]}
-            </span>
-        case element(tei:death) return 
-            <span>
-<!--
-             <p class="autText"><!-/-<i class="fa fa-plus"></i>-/->†&#xA0;
-                    {app:placeNames($node), ': '||$node/tei:date[1]}
-            </p>
--->
-                †&#xA0;{app:placeNames($node) || ': '||$node/tei:date[1]}
-            </span>
-        case element(tei:head) return if ($node/@xml:id='overview') then () else 
-            <span>
-            <a class="anchor" name="{$node/parent::tei:div[1]/@xml:id}"></a>
-                <h3>
-                    <a class="anchorjs-link" href="{session:encode-url(xs:anyURI('author.html?aid=' || $node/ancestor::tei:TEI/@xml:id||'#'||$node/parent::tei:div[1]/@xml:id))}">
-                        <span class="anchorjs-icon"></span>
-                    </a>
-                {$node}</h3>
-            </span>
-        case element(tei:list) return
-            if ($node/tei:head) then
-                <div>
-                <h4>{local:passthru($node/tei:head)}</h4>
-                <ul class="list-group" style="list-style-type: disc;">
-                    {for $child in $node/tei:item
-                    return
-                    <li class="list-group-item">
-                        {local:passthru($child)}
-                    </li>}
-                </ul>
-                </div>    
-            else
-                <ul class="list-group" style="list-style-type: disc;">
-                    {for $child in $node/tei:item
-                    return
-                    <li class="list-group-item">
-                        {local:passthru($child)}
-                    </li>}
-                </ul>    
-        case element(tei:orgName) return 
-            let $lang := request:get-attribute('lang')
-            let $getCerlId      :=  if (starts-with($node/@ref, 'cerl:')) then replace($node/@ref/string(), "(cerl):(\d{11})*", "$2") else ()
-            let $CerlHighlight  :=  if (starts-with($node/@ref, 'cerl:')) then replace($node/@ref/string(), "(cerl):(\d{11})*", "$1$2") else ()
-                return 
-                    if (starts-with($node/@ref, 'cerl:')) then 
-                         <span class="{('persName hi_'||$CerlHighlight)}">
-                            <a target="_blank" href="{('http://thesaurus.cerl.org/cgi-bin/record.pl?rid='||$getCerlId)}">{$node||$config:nbsp}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                         </span>
-                    else
-                        <span>{$node/text()}</span>
-        case element(tei:p) return
-            <p class="autText">{local:passthru($node)}</p>
-        case element(tei:persName) return 
-            let $lang := request:get-attribute('lang')
-            let $getAutId       :=  if (starts-with($node/@ref, 'author:')) then substring($node/@ref/string(),8,5) else ()
-            let $getGndId       :=  if (starts-with($node/@ref, 'gnd:'))  then replace($node/@ref/string(), "(gnd):(\d{9})*", "$1/$2") else ()
-            let $GndHighlight   :=  if (starts-with($node/@ref, 'gnd:'))  then replace($node/@ref/string(), "(gnd):(\d{9})*", "$1$2") else ()
-            let $getCerlId      :=  if (starts-with($node/@ref, 'cerl:')) then replace($node/@ref/string(), "(cerl):(\d{11})*", "$2") else ()
-            let $CerlHighlight  :=  if (starts-with($node/@ref, 'cerl:')) then replace($node/@ref/string(), "(cerl):(\d{11})*", "$1$2") else ()
-                return 
-                    if ($node/tei:addName) then 
-                        <span>
-                            <h3>
-                               <a class="anchorjs-link" href="{session:encode-url(xs:anyURI('author.html?aid=' || $node/ancestor::tei:TEI/@xml:id||'#'||$node/ancestor::tei:div[1]/@xml:id||'AddNames'))}">
-                                   <span class="anchorjs-icon"></span>
-                               </a><i18n:text key="addName">Aliasnamen</i18n:text>
-                           </h3>
-                           <p class="autText">{local:passthru($node/tei:addName)}</p>
-                        </span>
-                    else if (starts-with($node/@ref, 'author:')) then
-                         <span class="{('persName hi_'||'author'||$getAutId)}">
-                             <a href="{session:encode-url(xs:anyURI('author.html?aid=' || $getAutId))}">{($node/text())}</a>
-                         </span> 
-                    else if (starts-with($node/@ref, 'cerl:')) then 
-                         <span class="{('persName hi_'||$CerlHighlight)}">
-                            <a target="_blank" href="{('http://thesaurus.cerl.org/cgi-bin/record.pl?rid='||$getCerlId)}">{($node/text())||$config:nbsp}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                         </span>
-                    else if (starts-with($node/@ref, 'gnd:')) then 
-                         <span class="{('persName hi_'||$GndHighlight)}">
-                            <a target="_blank" href="{('http://d-nb.info/'||$getGndId)}">{($node/text())||$config:nbsp}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                         </span>
-                    else
-                        <span>{$node/text()}</span>
-        case element(tei:person) return
-            <ul style="list-style-type: disc;">
-                {for $child in $node/* return
-                    <li>{local:passthru($child)}</li>}
-            </ul>
-        case element(tei:placeName) return
-            let $getGetId :=  substring($node/@ref/string(),7,7)
-            let $replaceGet :=  'http://www.getty.edu/vow/TGNFullDisplay?find=&amp;place=&amp;nation=&amp;english=Y&amp;subjectid='||$getGetId
-                return 
-                    if (starts-with($node/@ref, 'getty:')) then
-                        <span class="{('place hi_'||'getty'||$getGetId)}">
-                            <a target="blank" href="{$replaceGet}">{($node/text())||$config:nbsp}<span class="glyphicon glyphicon-new-window" aria-hidden="true"></span></a>
-                        </span>    
-                    else
-                        <span class="place">{($node/text())}</span>
-        case element(tei:quote) return
-            <span>»{local:passthru($node)}«</span>
-        case element(tei:state) return
-            <span>
-<!--
-            {if (not($node/preceding::tei:state)) then
-                <span>
-                    <a class="anchor" name="{$node/ancestor::tei:div[1]/@xml:id||'Degree'}"></a>
-                    <h3>
-                       <a class="anchorjs-link" href="{session:encode-url(xs:anyURI('author.html?aid=' || $node/ancestor::tei:TEI/@xml:id||'#'||$node/ancestor::tei:div[1]/@xml:id||'Degree'))}">
-                           <span class="anchorjs-icon"></span>
-                       </a><i18n:text key="degree">Abschluss</i18n:text>
-                    </h3>
-                </span>
-                else()}
-                 <p class="autText">{$node/@when/string()||'&#32;'||$node/tei:label}</p> 
--->
-                 <p class="autText">{local:passthru($node)}</p> 
-            </span>
-         case element(tei:term) return   
-            let $getLemId:=  substring($node/@ref/string(),7,5) 
-                return
-                    if (starts-with($node/@ref, 'lemma:')) then
-                        <span class="{('term hi_'||'lemma'||$getLemId)}">
-                            <a href="{session:encode-url(xs:anyURI('lemma.html?aid=' || $getLemId))}">{($node/text())}</a>
-                        </span> 
-                    else()
-        default return local:passthru($node)
-};
-
-declare function local:passthru($nodes as node()*) as item()* {
-    for $node in $nodes/node() return app:AUTsummary($node)
-};:)
-
 
 
 (:funx used in author.html and lemma.html:)
@@ -1696,7 +1574,7 @@ declare %templates:wrap
 
 declare %templates:wrap %templates:default("lang", "en")
     function app:WPvol  ($node as node(), $model as map(*), $lang as xs:string?) {
-       let $link := 'workingPaper.html?wpid=' || $model('currentWp')/@xml:id
+       let $link := 'workingPaper.html?wpid=' || $model('currentWp')/@xml:id/string()
        let $vol := $model('currentWp')//tei:titleStmt/tei:title[@type='short']/string()
        return <h4><a  href="{$link}">{$vol}</a></h4>
 };
@@ -1708,9 +1586,9 @@ declare %templates:wrap
 
 declare %templates:wrap %templates:default("lang", "en")
     function app:WPimg ($node as node(), $model as map(*), $lang as xs:string?) {
-    let $link := 'workingPaper.html?wpid=' || $model('currentWp')/@xml:id
+    let $link := 'workingPaper.html?wpid=' || $model('currentWp')/@xml:id/string()
     let $img  := if ($model('currentWp')//tei:graphic/@url) then
-                       <img style="border: 0.5px solid #E7E7E7; width:90%; height: auto;" src="{$model('currentWp')//tei:graphic/@url}"/>
+                       <img style="border: 0.5px solid #E7E7E7; width:90%; height: auto;" src="{$model('currentWp')//tei:graphic/@url/string()}"/>
                  else ()
     return
        <a href="{$link}">{$img}</a>
@@ -1765,7 +1643,7 @@ declare %templates:wrap
 
 declare %templates:wrap %templates:default("lang", "en")
     function app:WPshowSingle ($node as node(), $model as map(*), $lang as xs:string?) {
-        let $work := <a href="workingPaper.html?wpid=' {$model('currentWp')/@xml:id}">{$model('currentWp')/@xml:id}</a> 
+        let $work := <a href="workingPaper.html?wpid=' {$model('currentWp')/@xml:id/string()}">{$model('currentWp')/@xml:id/string()}</a> 
         return
             $work
 };
@@ -1888,7 +1766,7 @@ declare %templates:wrap function app:WRKcatRecord($node as node(), $model as map
     let $workType := $model('currentWorkType')
     let $volumeIds :=   
         if ($workType eq 'work_multivolume') then 
-            for $item in $model('currentWorkHeader')/tei:fileDesc/tei:notesStmt/tei:relatedItem[@type eq 'work_volume'] return substring-after($item/@target, 'work:')
+            for $item in $model('currentWorkHeader')/tei:fileDesc/tei:notesStmt/tei:relatedItem[@type eq 'work_volume'] return substring-after($item/@target/string(), 'work:')
         else ()
     let $multivolInfo := 
         if ($workType eq 'work_volume') then
@@ -2537,8 +2415,8 @@ declare function app:WRKeditionMetadata($node as node(), $model as map(*), $wid 
             doc($config:tei-works-root || '/' || sutil:normalizeId($wid) || '.xml')/tei:TEI/tei:text/@type/string()
         else $model('currentWorkType')
     let $status := $teiHeader/tei:revisionDesc[1]/@status/string()
-    let $titleMain := $teiHeader/tei:fileDesc/tei:titleStmt/tei:title[@type eq 'main'][1]/text()
-    let $titleShort := $teiHeader/tei:fileDesc/tei:titleStmt/tei:title[@type eq 'short'][1]/text()
+    let $titleMain := $teiHeader/tei:fileDesc/tei:titleStmt/tei:title[@type eq 'main'][1]/string()
+    let $titleShort := $teiHeader/tei:fileDesc/tei:titleStmt/tei:title[@type eq 'short'][1]/string()
     let $author := string-join(for $a in $teiHeader/tei:fileDesc/tei:titleStmt/tei:author/tei:persName return app:rotateFormatName($a), " &amp; ")
     let $language := 
         if ($teiHeader/tei:profileDesc//tei:language[@n eq 'main'][1]/@ident eq 'la') then <i18n:text key="latin">Latein</i18n:text>
@@ -2572,7 +2450,7 @@ declare function app:WRKeditionMetadata($node as node(), $model as map(*), $wid 
             'titleMain': $titleMain,
             'titleShort': $titleShort,
             'author': $author,
-            'language': $language,
+            'language': string-join($languages/span, ", "),
             'publicationDate': $pubDate,
             'scholEditors': $scholarlyEditors,
             'techEditors': $technicalEditors,
@@ -2586,7 +2464,9 @@ declare function app:WRKeditionMetadata($node as node(), $model as map(*), $wid 
 
 (:jump from work.html to corresponding work_volume in workDetails.html:)(:FIXME:)
 declare function app:WRKdetailsCurrent($node as node(), $model as map(*), $lang as xs:string?) {
-    <a class="btn btn-link" href="workDetails.html?wid={request:get-parameter('wid', '')}"><i class="fas fa-file-alt"></i>&#32; <i18n:text key="details">Katalogeintrag</i18n:text></a>
+    let $output :=
+        <a class="btn btn-link" href="workDetails.html?wid={request:get-parameter('wid', '')}"><i class="fas fa-file-alt"></i>&#32; <i18n:text key="details">Katalogeintrag</i18n:text></a>
+        return $output
 };
 
 (: ================= End Retrieve single pieces of information ======== :)
@@ -2634,273 +2514,6 @@ declare function app:sourcesList($node as node(), $model as map(*), $lang as xs:
  : TODO:
  : - group bibls, and hightlight them fully
  :)
- (: deprecated? at least, currently not in use... :)
-(: TODO: if active again, fields using $model('currentWork') need to be adjusted (see app:loadWorkMetadata) :)
-(:declare %templates:default('startnodeId', 'none')
-    function app:WRKhiliteBox($node as node(), $model as map(*), $lang as xs:string, $startnodeId as xs:string, $wid as xs:string?, $q as xs:string?) {
-(\:      let $store-lang       := session:set-attribute("lang", $lang):\)
-      
-      let $debug := console:log('$startnodeId = ' || $startnodeId)
-
-      let $work := 
-        if (count($model('currentWork'))) then
-            $model('currentWork')
-        else
-            if ($wid) then
-                let $debug := console:log('Getting work based on $wid = ' || $config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml." )
-                return doc($config:tei-works-root || "/" || sutil:normalizeId($wid) || ".xml")
-            else ()
-      let $debug := console:log('count($work) = ' || count($work))
-
-      let $workId         := 
-        if ($wid) then
-            sutil:normalizeId($wid)
-        else
-            $work/@xml:id
-      let $debug := console:log('$workId = ' || $workId)
-
-      let $startnode := $work//*[@xml:id = $startnodeId]
-      let $analyze-section  := if ($startnodeId ne 'none') then
-                                   if (local-name($startnode) eq "milestone") then
-                                        $startnode/ancestor::tei:div[1]
-                                    else
-                                        $startnode
-                               else
-                                   $work//tei:text
-      let $debug := console:log('$analyze-section = ' || string($analyze-section/@xml:id))
-
-      let $milestone        :=  if ($startnodeId ne 'none') then
-                                    if (local-name($startnode) eq "milestone") then
-                                        $startnode
-                                    else
-                                        false()
-                                else
-                                    false()
-
-
-      let $analyze-section-title := if (not($milestone)) then
-                                        render:sectionTitle($model('currentWork'), $analyze-section[1])
-                                    else
-                                        render:sectionTitle($model('currentWork'), $milestone)
-
-      let $persons :=
-          for $entity in $analyze-section//tei:persName[@ref][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])]
-            let $ansetzungsform := app:resolvePersname($entity)
-            order by $ansetzungsform
-            return
-                if ($entity is ($analyze-section//tei:persName[tokenize(string($entity/@ref), ' ')[1] = tokenize(string(@ref), ' ')[1]][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])])[1]) then
-                    <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;" onclick="highlightSpanClassInText('hi_{translate((tokenize(string($entity/@ref), ' '))[1], ':', '')}',this)"> 
-                        <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$ansetzungsform} ({count($analyze-section//tei:persName[@ref][@ref = $entity/@ref][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])])})
-                    </li>
-                else ()
-
-        let $places :=
-          for $entity in $analyze-section//tei:placeName[@ref][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])]
-            let $ansetzungsform := if ($entity/@key) then string($entity/@key) else normalize-space(string-join($entity//text(), ''))
-            order by $ansetzungsform
-            return
-                if ($entity is ($analyze-section//tei:placeName[(tokenize(string(@ref), ' '))[1] = (tokenize(string($entity/@ref), ' '))[1]][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])])[1]) then
-                    <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;" onclick="highlightSpanClassInText('hi_{translate((tokenize($entity/@ref, ' '))[1], ':', '')}',this)">
-                        <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$ansetzungsform} ({count($analyze-section//tei:placeName[@ref][@ref = $entity/@ref][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])])})
-                    </li>
-                else ()
-                
-        let $lemma :=
-         for $entity in $analyze-section//tei:term[@ref][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])]
-            let $ansetzungsform := string($entity/@key)
-            order by $ansetzungsform
-            return
-                if ($entity is ($analyze-section//tei:term[@ref = $entity/@ref][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])])[1]) then
-                    <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;" onclick="highlightSpanClassInText('hi_{translate($entity/@ref, ':', '')}',this)">
-                        <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$ansetzungsform} ({count($analyze-section//tei:term[@ref][@ref = $entity/@ref][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])])})
-                    </li>
-                else ()
-
-        let $titles :=
-         for $entity in $analyze-section//tei:bibl[@sortKey][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])]
-            let $ansetzungsform := string($entity/@sortKey)
-            let $author         := sutil:formatName($entity//tei:persName)
-            let $title          := if ($entity//tei:title/@key) then $entity//tei:title/@key else ()
-            let $display-title  := if ($author and $title) then
-                                       concat($author, ': ', $title)
-                                   else
-                                        translate($ansetzungsform, '_', ': ')
-            order by $ansetzungsform
-            return
-                if ($entity is ($analyze-section//tei:bibl[@sortKey = $entity/@sortKey][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])])[1]) then
-                    <li class="menu-toggle" style="list-style-type: none; color:initial; background:initial; box-shadow:initial; border-radius:initial; padding: initial;" onclick="highlightSpanClassInText('hi_{translate($entity/@sortKey, ':', '')}',this)">
-                        <span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>&#xA0;{$display-title} ({count($analyze-section//tei:bibl[@sortKey][@sortKey = $entity/@sortKey][not($milestone) or (. >> $milestone and . << $milestone/following::tei:milestone[1])])})
-                    </li>
-                else ()
-
-(\: searchTermSection
-        let $searchterm :=  if ($q and $model("results")) then
-                            <section id="searchTermsSection">
-                                <b><i18n:text key="searchterm">Suchbegriff(e)</i18n:text></b>
-                                <ul id="searchTermsList">
-                                    <li style="list-style-type: none;"><a class="highlighted" onclick="highlightSpanClassInText('searchterm',this)">{$q}: ({count($model("results"))})</a></li>
-                                </ul>
-                            </section>
-                        else ()
-    let $output :=
-        <div>
-<!--
-            <section id="switchEditsSection">
-                <ul id="switchEditsList">
-                    <li style="list-style-type: none;">
-                        <span class="original unsichtbar">
-                            <a onclick="applyEditMode()">Modernisiert</a>
-                        </span>
-                        <span class="edited">
-                            <a onclick="applyOrigMode()">Diplomatisch</a>
-                        </span>
-                    </li>
-                </ul>
-            </section>
-:\)
-
-
-        let $output :=
-        <div>
-            <h5>{   if (not($startnodeId)) then
-                        "To load entities, click on a refresh button in one of the section menu popups..."
-                    else if (string($analyze-section/@xml:id) = 'completeWork') then
-                        "Entities in the entire work:"
-                    else 
-                        "Entities in " || $analyze-section-title || ":"
-                }
-            </h5>
-
-            {if ($startnodeId) then
-                <section id="personsSection">
-                    <b><i18n:text key="persons">Personen</i18n:text> ({count($persons)})</b>
-                    <ul id="personsList">
-                        {$persons}
-                    </ul>
-                </section>
-            else ()}
-            {if ($startnodeId) then
-                <section id="placesSection">
-                    <b><i18n:text key="places">Orte</i18n:text> ({count($places)})</b>
-                    <ul id="placesList">
-                        {$places}
-                    </ul>
-                </section>
-            else ()}
-            {if ($startnodeId) then
-                <section id="lemmataSection">
-                    <b><i18n:text key="lemmata">Lemma</i18n:text> ({count($lemma)})</b>
-                    <ul id="lemmataList">
-                        {$lemma}
-                    </ul>
-                </section>
-            else ()}
-            {if ($startnodeId) then
-                <section id="citedSection">
-                    <b><i18n:text key="cited">Zitiert</i18n:text> ({count( $titles)})</b>
-                    <ul id="citedList">
-                        {$titles}
-                    </ul>
-                </section>
-            else ()}
-        </div>
-    return $output
-};:)
-
-(: deprecated :)
-(:declare (\: %templates:wrap :\)
-    function app:WRKhiliteBoxBak($node as node(), $model as map(*), $lang as xs:string, $q as xs:string?) {
-(\:      let $store-lang := session:set-attribute("lang", $lang):\)
-(\:      if ($model('currentwork')//id($startnodeid)) then
-                            $model('currentwork')//id($startnodeid)
-                        else
-                            $model('currentwork')//tei:text  :\)
-(\:      let $startnode := util:expand($model('currentwork')//tei:text) :\)
-      let $persons :=
-          for $entity in $model('currentWork')//tei:text//tei:persName
-            let $ansetzungsform := app:resolvePersname($entity)
-            order by $ansetzungsform
-            return
-                if ($entity is ($model('currentWork')//tei:text//tei:persName[(tokenize(@ref, ' '))[1] = (tokenize($entity/@ref, ' '))[1]])[1]) then
-                        <li style="list-style-type: none;"><a onclick="highlightSpanClassInText('hi_{translate((tokenize($entity/@ref, ' '))[1], ':', '')}',this)">{$ansetzungsform} ({count($model('currentWork')//tei:text//tei:persName[@ref = $entity/@ref])})</a></li>
-                else ()
-      let $places :=
-         for $entity in $model('currentWork')//tei:text//tei:placeName
-            let $ansetzungsform := string($entity/@key)
-            order by $ansetzungsform
-            return
-                if ($entity is ($model('currentWork')//tei:text//tei:placeName[(tokenize(@ref, ' '))[1] = (tokenize($entity/@ref, ' '))[1]])[1]) then
-                    <li style="list-style-type: none;"><a onclick="highlightSpanClassInText('hi_{translate((tokenize($entity/@ref, ' '))[1], ':', '')}',this)">{$ansetzungsform} ({count($model('currentWork')//tei:text//tei:placeName[@ref = $entity/@ref])})</a></li>
-                else ()
-      let $lemma :=
-         for $entity in $model('currentWork')//tei:text//tei:term
-            let $ansetzungsform := string($entity/@key)
-            order by $ansetzungsform
-            return
-                if ($entity is ($model('currentWork')//tei:text//tei:term[@ref = $entity/@ref])) then
-                     <li style="list-style-type: none;"><a onclick="highlightSpanClassInText('hi_{translate($entity/@ref, ':', '')}',this)">{$ansetzungsform} ({count($model('currentWork')//tei:text//tei:term[@ref = $entity/@ref])})</a></li>
-                else ()
-      let $titles :=
-         for $entity in $model('currentWork')//tei:text//tei:bibl
-            let $ansetzungsform := string($entity/@sortKey)
-            let $author := $entity/tei:persName
-            let $title := $entity/tei:title
-            order by $ansetzungsform
-            return
-                if ($entity is ($model('currentWork')//tei:text//tei:bibl[@sortKey=$entity/@sortKey])) then
-                    <li style="list-style-type: none;"><a onclick="highlightSpanClassInText('hi_{translate($entity/@sortKey, ':', '')}',this)">{translate($entity/@sortKey, '_', ' ')}{string($author/@key)}: {string($title)} ({count($model('currentWork')//tei:bibl[@sortKey = $entity/@sortKey])})</a></li>
-                else ()
-    let $searchterm :=  if ($q and $model("results")) then
-                            <section id="searchTermsSection">
-                                <b><i18n:text key="searchterm">Suchbegriff(e)</i18n:text></b>
-                                <ul id="searchTermsList">
-                                    <li style="list-style-type: none;"><a class="highlighted" onclick="highlightSpanClassInText('searchterm',this)">{$q}: ({count($model("results"))})</a></li>
-                                </ul>
-                            </section>
-                        else ()
-    let $output :=
-        <div>
-            <section id="switchEditsSection">
-                <ul id="switchEditsList">
-                    <li style="list-style-type: none;">
-                        <span class="original unsichtbar" style="cursor: pointer;">
-                            <a onclick="applyEditMode()">Konstituiert</a>
-                        </span>
-                        <span class="edited" style="cursor: pointer;">
-                            <a onclick="applyOrigMode()">Diplomatisch</a>
-                        </span>
-                    </li>
-                </ul>
-            </section>
-            {$searchterm}
-            <section id="personsSection">
-                <b><i18n:text key="persons">Personen</i18n:text></b>
-                <ul id="personsList">
-                    {if($persons)then $persons else <li>- o -</li>}
-                </ul>
-            </section>
-            <section id="placesSection">
-                <b><i18n:text key="places">Orte</i18n:text></b>
-                <ul id="placesList">
-                    {if($places)then $places else <li> - o - </li>}
-                </ul>
-            </section>
-            <section id="lemmataSection">
-                <b><i18n:text key="lemmata">Lemma</i18n:text></b>
-                <ul id="lemmataList">
-                    {if($lemma)then $lemma else <li> - o - </li>}
-                </ul>
-            </section>
-            <section id="citedSection">
-                <b><i18n:text key="cited">Zitiert</i18n:text></b>
-                <ul id="citedList">
-                    {if($titles)then $titles else <li> - o - </li>}
-                </ul>
-            </section>
-        </div>
-    return $output
-};:)
-
 
 declare function app:WRKtextModus($node as node(), $model as map(*), $lang as xs:string) {
     let $output :=
@@ -3013,41 +2626,6 @@ declare function app:WRKtoc($node as node(), $model as map(*), $wid as xs:string
     let $toc :=
         if ($q) then
             let $tocDoc := doc($config:html-root || '/' || sutil:normalizeId($wid) || '/' || sutil:normalizeId($wid) || '_toc.html')
-            (:
-            let $xslSheet       := 
-                <xsl:stylesheet version="2.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-                    <xsl:output omit-xml-declaration="yes" indent="yes"/>
-                    <xsl:param name="q"/>
-                    <xsl:template match="node()|@*" priority="2">
-                        <xsl:copy>
-                            <xsl:apply-templates select="node()|@*"/>
-                        </xsl:copy>
-                    </xsl:template>
-                    <xsl:template match="a/@href" priority="80">
-                        <xsl:attribute name="href">
-                            <xsl:choose>
-                                <xsl:when test="starts-with(., '#')">
-                                    <xsl:value-of select="."/>
-                                </xsl:when>
-                                <xsl:when test="contains(., '#')">
-                                    <xsl:value-of select="replace(., '#', concat('&amp;q=', $q, '#'))"/>
-                                </xsl:when>                                                            
-                                <xsl:otherwise>
-                                    <xsl:value-of select="concat(., '&amp;q=', $q)"/>
-                                </xsl:otherwise>
-                            </xsl:choose>
-                        </xsl:attribute>
-                    </xsl:template>
-                </xsl:stylesheet>
-            let $parameters :=  
-                <parameters>
-                    <param name="exist:stop-on-warn" value="yes"/>
-                    <param name="exist:stop-on-error" value="yes"/>
-                    <param name="q" value="{$q}"/>
-                </parameters>
-            return 
-                transform:transform($tocDoc, $xslSheet, $parameters)
-            :)
             return 
                 app:copyInsertSearchParam($tocDoc/*, $q)
          else
@@ -3055,20 +2633,6 @@ declare function app:WRKtoc($node as node(), $model as map(*), $wid as xs:string
     return 
         $toc
 };
-
-(:declare function app:downloadTXT($node as node(), $model as map(*), $mode as xs:string, $lang as xs:string) {
-    let $wid := request:get-parameter('wid', '')
-    let $hoverTitleEdit := <i18n:text key="downloadTXTEdit">Download as plaintext (constituted variant)</i18n:text>
-    let $hoverTitleOrig := <i18n:text key="downloadTXTOrig">Download as plaintext (diplomatic variant)</i18n:text>
-    
-    let $download := 
-        if ($wid and ($mode eq 'edit')) then 
-            <li><a title="{$hoverTitleEdit}" href="{$config:idserver || '/texts/' || $wid ||'?format=txt&amp;mode=edit'}"><span class="fas fa-align-left" aria-hidden="true"/>&#xA0;TXT (<i18n:text key="constitutedLower">constituted</i18n:text>)</a></li>
-        else if ($wid and ($mode eq 'orig')) then 
-            <li><a title="{$hoverTitleOrig}" href="{$config:idserver || '/texts/' || $wid ||'?format=txt&amp;mode=orig'}"><span class="fas fa-align-left" aria-hidden="true"/>&#xA0;TXT (<i18n:text key="diplomaticLower">diplomatic</i18n:text>)</a></li>
-        else()
-    return $download
-};:)
 
 
 (: ================= End Html construction routines ========== :)
@@ -3288,66 +2852,13 @@ declare %templates:default
 
 declare function app:loadWRKpagination ($node as node(), $model as map (*), $wid as xs:string, $lang as xs:string, $q as xs:string?) {
     let $pagesFile  :=  doc($config:html-root || '/' || sutil:normalizeId($wid) || '/' || sutil:normalizeId($wid) || '_pages_' || $lang || '.html')
-(:    let $dbg := console:log(substring(serialize($pagesFile),1,300)):)
-    (:
-    let $xslSheet   := 
-        <xsl:stylesheet version="2.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-            <xsl:output omit-xml-declaration="yes" indent="yes"/>
-            <xsl:param name="q"/>
-            <xsl:template match="node()|@*" priority="2">
-                <xsl:copy>
-                    <xsl:apply-templates select="node()|@*"/>
-                </xsl:copy>
-            </xsl:template>
-            <xsl:template match="a/@href" priority="80">
-                <xsl:attribute name="href">
-                    <xsl:choose>
-                        <xsl:when test="starts-with(., '#')">
-                            <xsl:value-of select="."/>
-                        </xsl:when>
-                        <xsl:when test="contains(., '#')">
-                            <xsl:value-of select="replace(., '#', concat('&amp;q=', $q, '#'))"/>
-                        </xsl:when>                                                            
-                        <xsl:otherwise>
-                            <xsl:value-of select="concat(., '&amp;q=', $q)"/>
-                        </xsl:otherwise>
-                    </xsl:choose>
-                </xsl:attribute>
-            </xsl:template>
-        </xsl:stylesheet>
-    let $parameters :=  
-        <parameters>
-            <param name="exist:stop-on-warn" value="yes"/>
-            <param name="exist:stop-on-error" value="yes"/>
-            <param name="q" value="{$q}"/>
-        </parameters>
-    :)
     return 
         if ($q) then
-(:            transform:transform($pagesFile, $xslSheet, $parameters):)
             app:copyInsertSearchParam($pagesFile/*, $q)
         else
             $pagesFile
 };
 
-(: Old variants of the pagination loading function that differentiate too much between $q present/absent
-declare function app:WRKpaginationQ ($node as node(), $model as map(*), $wid as xs:string?, $q as xs:string?, $lang as xs:string) {
-<ul id="later" class="dropdown-menu scrollable-menu" role="menu" aria-labelledby="dropdownMenu1">
-{ if ($q) then
-    let $workId    :=  if ($wid) then $wid else $model("currentWork")/@xml:id
-    for $pb in doc($config:index-root || "/" || $workId || '_nodeIndex.xml')//sal:node[@type="pb"][not(@subtype = ('sameAs', 'corresp'))]
-        let $fragment := $pb/sal:fragment
-        let $volume   := () (/: if (starts-with($pb/sal:crumbtrail/a[1]/text(), 'Vol. ')) then
-                            $pb/sal:crumbtrail/a[1]/text() || ','
-                         else () :/)
-        let $url      := 'work.html?wid='||$workId || '&amp;' || 'frag='|| $fragment|| '&amp;q=' ||$q|| concat('#', replace($pb/@n, 'facs_', 'pageNo_'))
-    return 
-        <li role="presentation"><a role="menuitem" tabindex="-1" href="{$url}">{normalize-space($volume || $pb/sal:title)}</a></li>
-        else ()
-}
-</ul>
-};
-:)
 
 (:==== Common Functions ==== :)
 
@@ -3664,4 +3175,3 @@ declare function app:makeCooperatorEntry($person as element(tei:person), $lang a
         </div>
     return $content
 };
-
